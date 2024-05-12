@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "hardhat/console.sol";
-
 import "./common/Constants.sol";
 import "./common/Errors.sol";
 import "./libraries/MathHelper.sol";
@@ -15,6 +14,12 @@ import "./interfaces/IEndpoint.sol";
 import "./EndpointGated.sol";
 import "./libraries/Logger.sol";
 
+/**
+ * @title BaseEngine
+ * @notice This is an abstract base contract for product engines in the Vertex Protocol.
+ * It provides common functionality for managing products, risks, and balances.
+ * The contract interacts with the Clearinghouse, OffchainExchange, and Endpoint contracts.
+ */
 abstract contract BaseEngine is IProductEngine, EndpointGated {
     using MathSD21x18 for int128;
 
@@ -108,6 +113,12 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         virtual
         returns (int128, int128);
 
+    /**
+     * @notice Calculates the health contribution of a subaccount for a given health type
+     * @param subaccount The subaccount ID
+     * @param healthType The type of health calculation (Initial or Maintenance)
+     * @return health The health contribution of the subaccount
+     */
     function getHealthContribution(
         bytes32 subaccount,
         IProductEngine.HealthType healthType
@@ -166,6 +177,13 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         }
     }
 
+    /**
+     * @notice Retrieves the core risk parameters for a subaccount and product
+     * @param subaccount The subaccount ID
+     * @param productId The ID of the product
+     * @param healthType The type of health calculation (Initial or Maintenance)
+     * @return The core risk parameters
+     */
     function getCoreRisk(
         bytes32 subaccount,
         uint32 productId,
@@ -190,6 +208,13 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         require(canApplyDeltas[msg.sender], ERR_UNAUTHORIZED);
     }
 
+    /**
+     * @notice Initializes the contract with the necessary addresses and configurations
+     * @param _clearinghouseAddr The address of the Clearinghouse contract
+     * @param _offchainExchangeAddr The address of the OffchainExchange contract
+     * @param _endpointAddr The address of the Endpoint contract
+     * @param _admin The address of the admin account
+     */
     function _initialize(
         address _clearinghouseAddr,
         address _offchainExchangeAddr,
@@ -207,10 +232,18 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         canApplyDeltas[_offchainExchangeAddr] = true;
     }
 
+    /**
+     * @notice Retrieves the address of the Clearinghouse contract
+     * @return The address of the Clearinghouse contract
+     */
     function getClearinghouse() external view returns (address) {
         return address(_clearinghouse);
     }
 
+    /**
+     * @notice Retrieves the IDs of all registered products
+     * @return An array of product IDs
+     */
     function getProductIds() public view returns (uint32[] memory) {
         return productIds;
     }
@@ -241,6 +274,15 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         return crossProducts;
     }
 
+    /**
+     * @notice Adds a new product with the given parameters
+     * @param productId The ID of the product to add
+     * @param riskStore The risk parameters for the product
+     * @param virtualBook The address of the virtual orderbook for the product
+     * @param sizeIncrement The size increment for the product
+     * @param minSize The minimum size for the product
+     * @param lpSpreadX18 The liquidity provider spread for the product (fixed-point number with 18 decimals)
+     */
     function _addProductForId(
         uint32 productId,
         RiskHelper.RiskStore memory riskStore,

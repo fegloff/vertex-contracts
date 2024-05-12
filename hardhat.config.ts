@@ -14,6 +14,7 @@ import 'hardhat-gas-reporter';
 import 'hardhat-contract-sizer';
 import 'hardhat-abi-exporter';
 import { HardhatUserConfig } from 'hardhat/config';
+import * as configApp from './config';
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -25,7 +26,20 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  defaultNetwork: 'localhost',
+  // defaultNetwork: 'localhost',
+  networks: {
+    localhost: {
+      url: configApp.config.networkUrl, // Make sure this matches your node's host and port
+      chainId: configApp.config.chainId, // Make sure this matches your node's chain ID
+      accounts: [configApp.config.privateKey],
+    }
+  },
+  namedAccounts: {
+    deployer: {
+      default: 0, // Use the first account from the accounts array
+      harmony: configApp.config.privateKey,
+    },
+  },
   contractSizer: {
     runOnCompile: true,
   },
@@ -42,6 +56,13 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     timeout: 1000000000,
+  },
+  paths: {
+    sources: './contracts',
+    tests: './test',
+    cache: './cache',
+    artifacts: './artifacts',
+    deploy:'./scripts/deploy'
   },
 };
 

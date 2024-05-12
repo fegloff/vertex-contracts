@@ -45,6 +45,12 @@ interface IBlast {
     ) external;
 }
 
+/**
+ * @title Clearinghouse
+ * @notice The Clearinghouse contract serves as the central hub for managing collateral, risk, and liquidity in the Vertex Protocol.
+ * It interacts with various product engines (e.g., SpotEngine, PerpEngine) and the OffchainExchange to facilitate trading and risk management.
+ * The contract is upgradeable and includes features like collateral deposit/withdrawal, liquidity provision, and liquidation.
+ */
 contract Clearinghouse is
     EndpointGated,
     ClearinghouseStorage,
@@ -54,6 +60,13 @@ contract Clearinghouse is
     using MathSD21x18 for int128;
     using ERC20Helper for IERC20Base;
 
+    /**
+     * @notice Initializes the Clearinghouse contract with the necessary addresses and configurations
+     * @param _endpoint The address of the Endpoint contract
+     * @param _quote The address of the quote token
+     * @param _clearinghouseLiq The address of the ClearinghouseLiq contract
+     * @param _spreads The spreads configuration
+     */
     function initialize(
         address _endpoint,
         address _quote,
@@ -73,10 +86,19 @@ contract Clearinghouse is
      * View
      */
 
+    /**
+     * @notice Retrieves the address of the quote token
+     * @return The address of the quote token
+     */
     function getQuote() external view returns (address) {
         return quote;
     }
 
+    /**
+     * @notice Retrieves the address of the engine by its type
+     * @param engineType The type of the engine (e.g., SPOT, PERP)
+     * @return The address of the engine
+     */
     function getEngineByType(IProductEngine.EngineType engineType)
         external
         view
@@ -85,6 +107,11 @@ contract Clearinghouse is
         return address(engineByType[engineType]);
     }
 
+    /**
+     * @notice Retrieves the address of the engine by the product ID
+     * @param productId The ID of the product
+     * @return The address of the engine
+     */
     function getEngineByProduct(uint32 productId)
         external
         view
@@ -93,11 +120,20 @@ contract Clearinghouse is
         return address(productToEngine[productId]);
     }
 
+    /**
+     * @notice Retrieves the insurance balance
+     * @return The insurance balance
+     */
     function getInsurance() external view returns (int128) {
         return insurance;
     }
 
-    /// @notice grab total subaccount health
+    /**
+     * @notice Retrieves the total health of a subaccount for a given health type
+     * @param subaccount The subaccount ID
+     * @param healthType The type of health calculation (Initial or Maintenance)
+     * @return health The total health of the subaccount
+     */
     function getHealth(bytes32 subaccount, IProductEngine.HealthType healthType)
         public
         view
@@ -171,6 +207,10 @@ contract Clearinghouse is
         health += perpEngine.getHealthContribution(subaccount, healthType);
     }
 
+    /**
+     * @notice Registers a product with the Clearinghouse
+     * @param productId The ID of the product to register
+     */
     function registerProduct(uint32 productId) external {
         IProductEngine engine = IProductEngine(msg.sender);
         IProductEngine.EngineType engineType = engine.getEngineType();
@@ -186,6 +226,12 @@ contract Clearinghouse is
      * Actions
      */
 
+    /**
+     * @notice Adds a new product engine to the Clearinghouse
+     * @param engine The address of the product engine
+     * @param offchainExchange The address of the OffchainExchange contract
+     * @param engineType The type of the product engine (e.g., SPOT, PERP)
+     */
     function addEngine(
         address engine,
         address offchainExchange,
@@ -226,6 +272,10 @@ contract Clearinghouse is
         return token.decimals();
     }
 
+    /**
+     * @notice Deposits collateral for a specific product
+     * @param txn The DepositCollateral transaction data
+     */
     function depositCollateral(IEndpoint.DepositCollateral calldata txn)
         external
         virtual
@@ -245,6 +295,10 @@ contract Clearinghouse is
         emit ModifyCollateral(amountRealized, txn.sender, txn.productId);
     }
 
+    /**
+     * @notice Transfers quote tokens between subaccounts
+     * @param txn The TransferQuote transaction data
+     */
     function transferQuote(IEndpoint.TransferQuote calldata txn)
         external
         virtual
@@ -268,7 +322,10 @@ contract Clearinghouse is
         require(_isAboveInitial(txn.sender), ERR_SUBACCT_HEALTH);
     }
 
-    /// @notice control insurance balance, only callable by owner
+    /**
+     * @notice control insurance balance, only callable by owner
+     * @param txn The DepositInsurance transaction data
+     */
     function depositInsurance(IEndpoint.DepositInsurance calldata txn)
         external
         virtual
@@ -294,6 +351,13 @@ contract Clearinghouse is
         return uint128(IERC20Base(token).balanceOf(address(this)));
     }
 
+    /**
+     * @notice Withdraws collateral for a specific product
+     * @param sender The subaccount ID of the sender
+     * @param productId The ID of the product
+     * @param amount The amount of collateral to withdraw
+     * @param sendTo The address to send the withdrawn collateral to
+     */
     function withdrawCollateral(
         bytes32 sender,
         uint32 productId,
@@ -327,6 +391,10 @@ contract Clearinghouse is
         emit ModifyCollateral(amountRealized, sender, productId);
     }
 
+    /**
+     * @notice Mints liquidity tokens for a specific product
+     * @param txn The MintLp transaction data
+     */
     function mintLp(IEndpoint.MintLp calldata txn)
         external
         virtual
@@ -343,6 +411,10 @@ contract Clearinghouse is
         require(_isAboveInitial(txn.sender), ERR_SUBACCT_HEALTH);
     }
 
+    /**
+     * @notice Burns liquidity tokens for a specific product
+     * @param txn The BurnLp transaction data
+     */
     function burnLp(IEndpoint.BurnLp calldata txn)
         external
         virtual
@@ -355,6 +427,10 @@ contract Clearinghouse is
         );
     }
 
+    /**
+     * @notice Burns liquidity tokens and transfers the underlying assets
+     * @param txn The BurnLpAndTransfer transaction data
+     */
     function burnLpAndTransfer(IEndpoint.BurnLpAndTransfer calldata txn)
         external
         virtual
@@ -376,6 +452,11 @@ contract Clearinghouse is
         require(_isAboveInitial(txn.sender), ERR_SUBACCT_HEALTH);
     }
 
+    /**
+     * @notice Claims sequencer fees for a subaccount
+     * @param txn The ClaimSequencerFees transaction data
+     * @param fees The array of fees to claim for each product
+     */
     function claimSequencerFees(
         IEndpoint.ClaimSequencerFees calldata txn,
         int128[] calldata fees
@@ -443,6 +524,10 @@ contract Clearinghouse is
             .updateBalance(QUOTE_PRODUCT_ID, subaccount, amountSettled);
     }
 
+    /**
+     * @notice Settles the PnL (profit and loss) for multiple subaccounts
+     * @param txn The SettlePnl transaction data
+     */
     function settlePnl(IEndpoint.SettlePnl calldata txn) external onlyEndpoint {
         for (uint128 i = 0; i < txn.subaccounts.length; ++i) {
             _settlePnl(txn.subaccounts[i], txn.productIds[i]);
@@ -463,6 +548,10 @@ contract Clearinghouse is
         return getHealth(subaccount, IProductEngine.HealthType.MAINTENANCE) < 0;
     }
 
+    /**
+     * @notice Liquidates a subaccount
+     * @param txn The LiquidateSubaccount transaction data
+     */
     function liquidateSubaccount(IEndpoint.LiquidateSubaccount calldata txn)
         external
         virtual
@@ -487,6 +576,10 @@ contract Clearinghouse is
         address value;
     }
 
+    /**
+     * @notice Upgrades the ClearinghouseLiq contract
+     * @param _clearinghouseLiq The address of the new ClearinghouseLiq contract
+     */
     function upgradeClearinghouseLiq(address _clearinghouseLiq) external {
         AddressSlot storage proxyAdmin;
         assembly {
@@ -500,14 +593,28 @@ contract Clearinghouse is
         clearinghouseLiq = _clearinghouseLiq;
     }
 
+    /**
+     * @notice Retrieves the address of the ClearinghouseLiq contract
+     * @return The address of the ClearinghouseLiq contract
+     */
     function getClearinghouseLiq() external view returns (address) {
         return clearinghouseLiq;
     }
 
+    /**
+     * @notice Retrieves the spreads configuration
+     * @return The spreads configuration
+     */
     function getSpreads() external view returns (uint256) {
         return spreads;
     }
 
+    /**
+     * @notice Configures the points system
+     * @param blastPoints The address of the BlastPoints contract
+     * @param blast The address of the Blast contract
+     * @param gov The address of the governance contract
+     */
     function configurePoints(
         address blastPoints,
         address blast,

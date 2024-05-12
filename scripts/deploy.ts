@@ -136,8 +136,7 @@ async function main() {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy, get } = hre.deployments;
 
-  // Example usage of deployContractWithParams
-  // await deployContractWithParams("MyContract", deploy, get, deployer, "param1", "param2", 42);
+  // await deployContractWithParams("MockERC20", deploy, get, deployer, "param1", "param2", 42);
 }
 
 main()

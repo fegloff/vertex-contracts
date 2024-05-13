@@ -136,7 +136,11 @@ async function main() {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy, get } = hre.deployments;
 
-  // await deployContractWithParams("MockERC20", deploy, get, deployer, "param1", "param2", 42);
+  const tokenName = "Mock Token";
+  const tokenSymbol = "MOCK";
+  const tokenDecimals = 18;
+
+  await deployContractWithParams("MockERC20", deploy, get, deployer, tokenName, tokenSymbol, tokenDecimals);
 }
 
 main()

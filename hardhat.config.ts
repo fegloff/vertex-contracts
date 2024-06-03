@@ -26,18 +26,23 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  // defaultNetwork: 'localhost',
+  defaultNetwork: 'mainnet',
   networks: {
-    localhost: {
-      url: configApp.config.networkUrl, // Make sure this matches your node's host and port
-      chainId: configApp.config.chainId, // Make sure this matches your node's chain ID
-      accounts: [configApp.config.privateKey],
+    'mainnet': {
+      url: configApp.config.mainnet.networkUrl, // Make sure this matches your node's host and port
+      chainId: configApp.config.mainnet.chainId, // Make sure this matches your node's chain ID
+      accounts: [configApp.config.mainnet.privateKey],
+    },
+    'testnet': {
+      url: configApp.config.testnet.networkUrl, // Make sure this matches your node's host and port
+      chainId: configApp.config.testnet.chainId, // Make sure this matches your node's chain ID
+      accounts: [configApp.config.testnet.privateKey],
     }
   },
   namedAccounts: {
     deployer: {
       default: 0, // Use the first account from the accounts array
-      harmony: configApp.config.privateKey,
+      harmony: configApp.config.mainnet.privateKey,
     },
   },
   contractSizer: {

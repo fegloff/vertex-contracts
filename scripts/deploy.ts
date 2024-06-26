@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import hre from "hardhat";
 
-const contractsDir = path.join(__dirname, "../contracts");
+export const contractsDir = path.join(__dirname, "../contracts");
 
 const deployContracts: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await hre.getNamedAccounts();
@@ -18,7 +18,7 @@ const deployContracts: DeployFunction = async (hre: HardhatRuntimeEnvironment) =
   await deployContractsInDir(path.join(contractsDir, ''), deploy, get, deployer);
 };
 
-const deployContractsInDir = async (
+export const deployContractsInDir = async (
   dirPath: string,
   deployFn: (
     name: string,
@@ -87,7 +87,7 @@ const deployContractsInDir = async (
   }
 };
 
-const deployContractWithParams = async (
+export const deployContractWithParams = async (
   contractName: string,
   deployFn: (
     name: string,
@@ -99,7 +99,6 @@ const deployContractWithParams = async (
 ) => {
   try {
     let existingDeployment;
-    
     try {
       existingDeployment = await getFn(contractName);
     } catch (error) {
@@ -107,7 +106,7 @@ const deployContractWithParams = async (
         throw error;
       }
     }
-    
+
     if (existingDeployment) {
       console.log(
         `Contract ${contractName} already deployed at address: ${existingDeployment.address}`
@@ -129,6 +128,23 @@ const deployContractWithParams = async (
   }
 };
 
+async function mocks_deploy() {
+  const { deployer } = await hre.getNamedAccounts();
+  const { deploy, get } = hre.deployments;
+
+  console.log("Deploying Mocks contracts...");
+  
+  const verifierContract = await deployments.get("Verifier")
+  const verifierAddress = verifierContract.address; // '0xde04eE2172803813dDcAE6B0ABA66A7ecE2bD1F4';
+
+  await deployContractWithParams("MockSequencer", deploy, get, deployer, verifierAddress);
+
+  const initialSanctionedAddresses: string[] = [];
+
+  console.log("Deploying MockSanctions...");
+
+  await deployContractWithParams('MockSanctions', deploy, get, deployer, initialSanctionedAddresses);
+}
 async function main() {
   await deployContracts(hre);
 
@@ -141,6 +157,8 @@ async function main() {
   const tokenDecimals = 18;
 
   await deployContractWithParams("MockERC20", deploy, get, deployer, tokenName, tokenSymbol, tokenDecimals);
+  
+  await mocks_deploy();
 }
 
 main()

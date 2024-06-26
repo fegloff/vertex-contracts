@@ -14,4 +14,3 @@ export const config = {
     chainId: 1666700000,
   }
 }
-console.log(config)

@@ -42,7 +42,9 @@ const config: HardhatUserConfig = {
   namedAccounts: {
     deployer: {
       default: 0, // Use the first account from the accounts array
-      harmony: configApp.config.mainnet.privateKey,
+      mainnet: 0,
+      testnet: 0,
+      harmony: 0,
     },
   },
   contractSizer: {

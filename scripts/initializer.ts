@@ -1,32 +1,17 @@
 import { ethers, deployments } from 'hardhat';
+import { generateTestPoints, getContractsAddress, Point } from './helper';
 
-async function main() {
-  const [deployer] = await ethers.getSigners();
+async function endPointInitializer() {
+  const {
+    clearinghouse: clearinghouseAddress,
+    endpoint: endpointAddress,
+    sanctions: sanctionsAddress,
+    sequencer: sequencerAddress,
+    offchainExchange: offchainExchangeAddress,
+    verifier: verifierAddress
+   } = await getContractsAddress()
 
-  // Assume ClearingHouse is already deployed
-  const clearingHouseContract = await deployments.get("Clearinghouse");
-  const clearinghouseAddress = clearingHouseContract.address;
-  
-  const endpointContract = await deployments.get("Endpoint");
-  const endpointAddress = endpointContract.address;
-  
-  const mockSanctionsContract = await deployments.get("MockSanctions");
-  const sanctionsAddress = mockSanctionsContract.address;
-
-  const mockSequencerContract = await deployments.get("MockSequencer") 
-  const sequencerAddress = mockSequencerContract.address;
-
-  const offchainExchangeContract = await deployments.get("OffchainExchange")
-  const offchainExchangeAddress = offchainExchangeContract.address; // '0x3b4C5009c3C1107F526867C5aB360bBD5A6D5692';
-  
-  const verifierContract = await deployments.get("Verifier")
-  const verifierAddress = verifierContract.address; // '0xde04eE2172803813dDcAE6B0ABA66A7ecE2bD1F4';
-
-  // Connect to contracts
-  const Endpoint = await ethers.getContractFactory('Endpoint');
-  const endpoint = Endpoint.attach(endpointAddress);
-
-  // Prepare initialization parameters
+  const endpoint = await ethers.getContractAt('Endpoint', endpointAddress);
 
   const initialPrices: string[] = [
     ethers.utils.parseUnits("0.00075", 18).toString(),  // $0.00075 or 0.075 cents cents for Product ID 0
@@ -43,9 +28,66 @@ async function main() {
     verifierAddress,
     initialPrices
   );
-
   console.log('Endpoint initialized');
+}
 
+async function verifierInitializer() {
+  const {
+    verifier: verifierAddress
+  } = await getContractsAddress()
+  try {
+    let owner = ""
+    let state = []
+
+    const verifier = await ethers.getContractAt("Verifier", verifierAddress)
+
+    console.log("Checking owner...");
+    owner = await verifier.owner();
+    console.log("Contract owner:", owner);
+
+    console.log("Checking getContractState...");
+    state = await verifier.getContractState();
+    console.log("Contract state:", state);
+
+    const points = generateTestPoints();
+
+    points.forEach((point, index) => {
+      console.log(`Point ${index}: x = ${point.x.toHexString()}, y = ${point.y.toHexString()}`);
+    });
+
+    const tx = await verifier.initialize(points);
+    console.log("Initialization transaction sent:", tx.hash);
+    const receipt = await tx.wait();
+    console.log("Initialization transaction mined");
+
+    for (const log of receipt.logs) {
+      try {
+        const parsed = verifier.interface.parseLog(log);
+        console.log("Event:", parsed.name, parsed.args);
+      } catch (e) {
+        console.log("Could not parse log:", log);
+      }
+    }
+
+    console.log("Checking owner...");
+    owner = await verifier.owner();
+    console.log("Contract owner:", owner);
+
+    console.log("Checking getContractState...");
+    state = await verifier.getContractState();
+    console.log("Contract state:", state);
+
+  } catch (error) {
+    console.error("Initialization failed:", error);
+    if (error.transaction) {
+      console.error("Failed transaction:", error.transaction);
+    }
+  }
+}
+
+async function main() {
+  await verifierInitializer()
+  await endPointInitializer()
 }
 
 main()

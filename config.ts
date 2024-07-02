@@ -3,6 +3,7 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 
 export const config = {
+  tag: 'ver1',
   mainnet: {
     privateKey: process.env.PRIVATE_KEY ?? '',
     networkUrl: 'https://api.harmony.one',

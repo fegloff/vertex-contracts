@@ -1,8 +1,12 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+
 import { DeployFunction } from "hardhat-deploy/types";
 import * as fs from "fs";
 import * as path from "path";
 import hre from "hardhat";
+import { config } from "../config";
+import { getContractsAddress } from "./helper";
 
 export const contractsDir = path.join(__dirname, "../contracts");
 
@@ -10,8 +14,10 @@ const deployContracts: DeployFunction = async (hre: HardhatRuntimeEnvironment) =
   const { deployer } = await hre.getNamedAccounts();
   const { deploy, get } = hre.deployments;
 
-  // Specify the directory you want to deploy contracts from
+  const [deployer2]: SignerWithAddress[] = await ethers.getSigners();
+  console.log("Deploying contracts with the account:", deployer2.address);
 
+  // Specify the directory you want to deploy contracts from
   await deployContractsInDir(path.join(contractsDir, 'libraries'), deploy, get, deployer);
   await deployContractsInDir(path.join(contractsDir, 'interfaces'), deploy, get, deployer);
   await deployContractsInDir(path.join(contractsDir, 'util'), deploy, get, deployer);
@@ -49,6 +55,9 @@ export const deployContractsInDir = async (
           console.log(
             `Contract ${contractName} already deployed at address: ${existingDeployment.address}`
           );
+          console.log(
+            `const ${contractName}Address = "${existingDeployment.address}"`
+          );
           continue;
         }
 
@@ -71,6 +80,7 @@ export const deployContractsInDir = async (
           from: deployer,
           args: [], // Add any constructor arguments here
           log: true,
+          tags: [config.tag]
         });
 
         console.log(
@@ -111,6 +121,9 @@ export const deployContractWithParams = async (
       console.log(
         `Contract ${contractName} already deployed at address: ${existingDeployment.address}`
       );
+      console.log(
+        `const ${contractName}Address = "${existingDeployment.address}"`
+      );
       return;
     }
 
@@ -118,11 +131,13 @@ export const deployContractWithParams = async (
       from: deployer,
       args: constructorArgs,
       log: true,
+      tags: [config.tag]
     });
 
     console.log(
       `Contract ${contractName} deployed at address: ${deployment.address}`
     );
+    return deployment.address
   } catch (error) {
     console.error(`Error deploying contract ${contractName}:`, error);
   }
@@ -131,11 +146,11 @@ export const deployContractWithParams = async (
 async function mocks_deploy() {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy, get } = hre.deployments;
-
-  console.log("Deploying Mocks contracts...");
+  const {
+    verifier: verifierAddress
+  } = await getContractsAddress()
   
-  const verifierContract = await deployments.get("Verifier")
-  const verifierAddress = verifierContract.address; // '0xde04eE2172803813dDcAE6B0ABA66A7ecE2bD1F4';
+  console.log("Deploying Mocks contracts...");
 
   await deployContractWithParams("MockSequencer", deploy, get, deployer, verifierAddress);
 

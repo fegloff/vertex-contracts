@@ -27,6 +27,9 @@ contract PerpEngine is PerpEngineLp, Version {
         _initialize(_clearinghouse, _offchainExchange, _endpoint, _admin);
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
     function getEngineType() external pure returns (EngineType) {
         return EngineType.PERP;
     }

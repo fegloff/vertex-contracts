@@ -146,10 +146,10 @@ export const deployContractWithParams = async (
 async function mocks_deploy() {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy, get } = hre.deployments;
-  const {
-    verifier: verifierAddress
-  } = await getContractsAddress()
   
+  const verifierContract = await get("Verifier", { tag: config.tag })
+  const verifierAddress = verifierContract.address; // '0xde04eE2172803813dDcAE6B0ABA66A7ecE2bD1F4';
+ 
   console.log("Deploying Mocks contracts...");
 
   await deployContractWithParams("MockSequencer", deploy, get, deployer, verifierAddress);

@@ -94,6 +94,10 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         }
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
+
     function initialize(
         address _sanctions,
         address _sequencer,

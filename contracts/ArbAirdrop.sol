@@ -19,6 +19,7 @@ contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
     address sanctions;
     uint32 pastWeeks;
 
+    event InitializationStep(uint256 step);
     mapping(uint32 => bytes32) merkleRoots;
     mapping(uint32 => mapping(address => uint256)) claimed;
 
@@ -36,11 +37,16 @@ contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
         external
         initializer
     {
+        emit InitializationStep(0);
         __Ownable_init();
         token = _token;
         sanctions = _sanctions;
+        emit InitializationStep(1);
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
 
     /**
      * @notice Registers a Merkle root for a specific week

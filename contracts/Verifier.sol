@@ -44,6 +44,9 @@ contract Verifier is EIP712Upgradeable, OwnableUpgradeable, IVerifier, Version {
         emit InitializationStep(10);
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
 
     function revertGasInfo(uint256 i, uint256 gasUsed) external pure {
         revert(

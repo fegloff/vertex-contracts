@@ -82,6 +82,10 @@ contract Clearinghouse is
         emit ClearinghouseInitialized(_endpoint, _quote);
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
+    
     /**
      * View
      */

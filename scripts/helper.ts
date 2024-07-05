@@ -27,6 +27,25 @@ export function generateTestPoints(): Point[] {
   return points;
 }
 
+export function getSpread(): string {
+  // For a basic test setup, let's assume we want to pair two spot products with two perpetual products. We'll use small, sequential numbers for our product IDs to keep things simple.
+  // Let's say:
+  
+  // Spot product 1 is paired with Perpetual product 2
+  // Spot product 3 is paired with Perpetual product 4
+  
+  // To encode this in the _spreads parameter, we would use:
+  // 0x0102030400000000
+  // Here's the breakdown:
+  
+  // 01: Spot product ID 1
+  // 02: Perpetual product ID 2
+  // 03: Spot product ID 3
+  // 04: Perpetual product ID 4
+  // The rest is padded with zeros
+  return "0x0102030400000000";
+}
+
 export async function getContractsAddress() {
   
   const clearingHouseContract = await deployments.get("Clearinghouse", { tag: config.tag });
@@ -48,23 +67,23 @@ export async function getContractsAddress() {
   const verifierAddress = verifierContract.address; // '0xde04eE2172803813dDcAE6B0ABA66A7ecE2bD1F4';
  
   return {
-    eRC20Helper: "0x4E0951490aacdb77D33dA9e8567A3881a3Fc1096",
-    logger: "0x2c58486b9397aD16f31E39b9C8154C08578C58d5",
-    mathHelper: "0x659110544aee6a0937dAc5E97C9d05307939d22D",
-    mathSD21x18: "0x986E6588226d51b8e990498408a8721fbE2479B3",
-    riskHelper: "0x02977daeC3E233C193BBd05d60aA5BD969da344f",
-    gasInfo: "0x0AC5531C101C74f036F912B4a8B4B0746dB7B740",
-    arbAirdrop: "0x01E96f05aD08898953eB8e1B80ceEFd41ca5AC4C",
-    clearinghouse: clearinghouseAddress, // 0x1dD343aDB90548B7AF93aBB9086b26e6F9c0F280
-    clearinghouseLiq: "0x6cB2097B62C2Fc4f959091Adfe3a7A7747869534",
-    endpoint: endpointAddress, // 0xE485ed4D9441EA7bf3e22fA4c3d688D6efcBF009
-    mockSanctionsList: "0x061fbe11817beda36123839f4563d0bD0e28E0Fe",
-    offchainExchange: offchainExchangeAddress,
-    perpEngine: "0x098bE1c9D8E05b4071a8836E9803BfA4CE4D1E60",
-    spotEngine: "0xa747FcD33CB06e6B6a4839f3FF3Cc9053E4E5021",
-    verifier: verifierAddress,
-    mockERC20: "0xB428C64E196ce0dC3f455208337233A83969D229",
-    sequencer: sequencerAddress,
-    sanctions: sanctionsAddress
+    eRC20Helper: "0x2a685441FBa7529c813244943f1E938b5F877318",
+    logger: "0x50733026258406d6254ad85C6d7D74d44d1cf4EC",
+    mathHelper: "0x502d493F8e55e3Cf20ca2160c95C2adEa4eB1F75",
+    mathSD21x18: "0x5Cc143ac2ea61f19A2a064a8866d627274D4a80e",
+    riskHelper: "0x39D888086009Ad47feb37EF4879259cB648b24aC",
+    gasInfo: "0x5e7d93dbf797F2f19e59fEd67EEC9ECF6527aF8e",
+    arbAirdrop: "0x0456ADC2aE5A5D83140cbd2830bfB22768979B53",
+    clearinghouse: clearinghouseAddress, // 0x53D1413dfB1D8cdA269245751A895D726779c543
+    clearinghouseLiq: "0xD7e62Ab834eAd29a75dc269C1c4468a0c6192a37",
+    endpoint: endpointAddress, // 0x35AB09652662a248a017B963Da94d507397615b4
+    mockSanctionsList: "0xe02622707db11075A54Cb55eEf15BD3e029E48AE",
+    offchainExchange: offchainExchangeAddress, // 0x1B6Ac343382AEEdA5B65E616A241729c241c37c1
+    perpEngine: "0xab580BdE8Ea0e3058deD895aa9E21084D6147f24",
+    spotEngine: "0xE2CC80379C714c9833aA626b9609999FA862d7bE",
+    verifier: verifierAddress, // 0x109622cE4Ed09E3131D3b0e3B94078E42a6E70f0
+    mockERC20: "0xB428C64E196ce0dC3f455208337233A83969D229", // 0x578A26aBa2417A22501b8B06410Fb2fbfe635bc6
+    sequencer: sequencerAddress, // 0xFF83f2190Fb75bD1676F424784b1F9481Ba6b6Fd
+    sanctions: sanctionsAddress // 0xf5643FA87AB572eCa4d6CbDCC44500D76B282B3b
   };
 }

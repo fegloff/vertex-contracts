@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../Verifier.sol"; // Assume this is the path to your Verifier contract
+import "../Verifier.sol";
 
 contract MockSequencer {
     uint64 public nSubmissions;

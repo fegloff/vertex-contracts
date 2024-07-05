@@ -154,6 +154,10 @@ contract OffchainExchange is
         }
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
+
     function initialize(address _clearinghouse, address _endpoint)
         external
         initializer

@@ -26,7 +26,7 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  defaultNetwork: 'mainnet',
+  defaultNetwork: 'testnet',
   networks: {
     'mainnet': {
       url: configApp.config.mainnet.networkUrl, // Make sure this matches your node's host and port
@@ -37,6 +37,14 @@ const config: HardhatUserConfig = {
       url: configApp.config.testnet.networkUrl, // Make sure this matches your node's host and port
       chainId: configApp.config.testnet.chainId, // Make sure this matches your node's chain ID
       accounts: [configApp.config.testnet.privateKey],
+    },
+    'localhost': {
+      url: "http://127.0.0.1:8545",
+      chainId: 31337,
+    },
+    'hardhat': {
+      chainId: 31337,
+      // accounts: [configApp.config.hardhat.privateKey]
     }
   },
   namedAccounts: {

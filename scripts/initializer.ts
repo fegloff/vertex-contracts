@@ -1,7 +1,43 @@
 import { ethers, getNamedAccounts } from 'hardhat';
-import { generateTestPoints, getContractsAddress, getSpread } from './helper';
+import { generateTestPoints, getContractsAddress, getSigner, getSpread } from './helpers/helper';
+import { Signer } from 'ethers';
+import { addEngine, EngineType } from './helpers/clearinghouse';
+import { addProduct } from './helpers/spotEngine';
 
-async function endPointInitializer() {
+
+export async function offchainExchangeInitializer(signer: Signer) {
+  try {
+    const {
+      clearinghouse: clearinghouseAddress,
+      endpoint: endpointAddress,
+      offchainExchange: offchainExchangeAddress,
+    } = await getContractsAddress()
+
+    const offchainExchange = await ethers.getContractAt('OffchainExchange', offchainExchangeAddress, signer);
+
+    if (!await offchainExchange.isInitialized()) {
+      // Initialize Endpoint
+      const tx = await offchainExchange.initialize(
+        clearinghouseAddress,
+        endpointAddress
+      );
+      console.log("Initialization transaction sent:", tx.hash);
+      const receipt = await tx.wait();
+      console.log('OffchainExchange initialized...', receipt.gasUsed);
+
+    } else {
+      console.log("OffchainExchange already initialized")
+    }
+  } catch (error) {
+    console.error("Initialization failed:", error);
+    if (error.transaction) {
+      console.error("Failed transaction:", error.transaction);
+    }
+    throw(error)
+  }
+}
+
+export async function endPointInitializer(signer: Signer) {
   try {
     const {
       clearinghouse: clearinghouseAddress,
@@ -12,7 +48,7 @@ async function endPointInitializer() {
       verifier: verifierAddress
     } = await getContractsAddress()
 
-    const endpoint = await ethers.getContractAt('Endpoint', endpointAddress);
+    const endpoint = await ethers.getContractAt('Endpoint', endpointAddress, signer);
 
     if (!await endpoint.isInitialized()) {
       const initialPrices: string[] = [
@@ -21,7 +57,7 @@ async function endPointInitializer() {
         ethers.utils.parseUnits("0.00001", 18).toString(),// $0.00001 or 0.001 cents cents for Product ID 2
       ];
       // Initialize Endpoint
-      await endpoint.initialize(
+      const tx = await endpoint.initialize(
         sanctionsAddress,
         sequencerAddress,
         offchainExchangeAddress,
@@ -29,7 +65,10 @@ async function endPointInitializer() {
         verifierAddress,
         initialPrices
       );
-      console.log('Endpoint initialized');
+      console.log("Initialization transaction sent:", tx.hash);
+      const receipt = await tx.wait();
+      console.log('Endpoint initialized...', receipt.gasUsed);
+
     } else {
       console.log("Endpoint already initialized")
     }
@@ -38,30 +77,30 @@ async function endPointInitializer() {
     if (error.transaction) {
       console.error("Failed transaction:", error.transaction);
     }
+    throw(error)
   }
 }
 
-async function clearinghouseInitializer() {
+async function clearinghouseInitializer(signer: Signer) {
   try {
     const {
       clearinghouseLiq: clearinghouseLiqAddress,
       clearinghouse: clearinghouseAddress,
       endpoint: endpointAddress,
+      quoteToken: token0Address
     } = await getContractsAddress()
-    // contact address taken from here: https://www.custonomy.io/supported-tokens/usd-coin/usdc-on-harmony
-    const oneusdcAddress = "0x985458E523dB3d53125813eD68c274899e9DfAb4"; // 1USDC
-    const clearinghouse = await ethers.getContractAt("Clearinghouse", clearinghouseAddress);
+    const clearinghouse = await ethers.getContractAt("Clearinghouse", clearinghouseAddress, signer);
     if (!await clearinghouse.isInitialized()) {
       const spread = getSpread()
       const tx = await clearinghouse.initialize(
         endpointAddress,
-        oneusdcAddress,
+        token0Address,
         clearinghouseLiqAddress,
         spread
       );
       console.log("Initialization transaction sent:", tx.hash);
       const receipt = await tx.wait();
-      console.log("Clearinghouse initialization ...", receipt)
+      console.log("Clearinghouse initialization ...", receipt.gasUsed)
     } else {
       console.log("Clearinghouse already initialized")
     }
@@ -70,10 +109,11 @@ async function clearinghouseInitializer() {
     if (error.transaction) {
       console.error("Failed transaction:", error.transaction);
     }
+    throw(error)
   }
 }
 
-async function verifierInitializer() {
+async function verifierInitializer(signer: Signer) {
   const {
     verifier: verifierAddress
   } = await getContractsAddress()
@@ -81,7 +121,8 @@ async function verifierInitializer() {
     let owner = ""
     let state = []
 
-    const verifier = await ethers.getContractAt("Verifier", verifierAddress)
+    const verifier = await ethers.getContractAt("Verifier", verifierAddress, signer)
+
     if (!await verifier.isInitialized()) {
       console.log("Checking owner...");
       owner = await verifier.owner();
@@ -126,26 +167,29 @@ async function verifierInitializer() {
     if (error.transaction) {
       console.error("Failed transaction:", error.transaction);
     }
+    throw(error)
   }
 }
 
-async function spotEngineInitializer() {
+// contact address taken from here: https://www.custonomy.io/supported-tokens/usd-coin/usdc-on-harmony
+// const oneusdcAddress = "0x985458E523dB3d53125813eD68c274899e9DfAb4"; // 1USDC
+async function spotEngineInitializer(signer: Signer) {
   try {
     const {
       clearinghouse: clearinghouseAddress,
       endpoint: endpointAddress,
       offchainExchange: offchainExchangeAddress,
       spotEngine: spotEngineAddress,
+      quoteToken: token0Address
     } = await getContractsAddress()
     const { deployer } = await getNamedAccounts();
-    // contact address taken from here: https://www.custonomy.io/supported-tokens/usd-coin/usdc-on-harmony
-    const oneusdcAddress = "0x985458E523dB3d53125813eD68c274899e9DfAb4"; // 1USDC
-    const spotEngine = await ethers.getContractAt("SpotEngine", spotEngineAddress);
+    
+    const spotEngine = await ethers.getContractAt("SpotEngine", spotEngineAddress, signer);
     if (!await spotEngine.isInitialized()) {
       const tx = await spotEngine.initialize(
         clearinghouseAddress,
         offchainExchangeAddress,
-        oneusdcAddress,
+        token0Address,
         endpointAddress,
         deployer
       );
@@ -153,33 +197,33 @@ async function spotEngineInitializer() {
       const receipt = await tx.wait();
       console.log("SpotEngine initialization ...", receipt.gasUsed)
     } else {
-      console.log("PerpEngine already initialized")
+      console.log(`SpotEngine (${spotEngineAddress}) already initialized"`)
     }
   } catch (error) {
     console.error("Initialization failed:", error);
     if (error.transaction) {
       console.error("Failed transaction:", error.transaction);
     }
+    throw(error)
   }
 }
 
-async function perpEngineInitializer() {
+async function perpEngineInitializer(signer: Signer) {
   try {
     const {
       clearinghouse: clearinghouseAddress,
       endpoint: endpointAddress,
       offchainExchange: offchainExchangeAddress,
       perpEngine: perpEngineAddress,
+      quoteToken: token0Address,
     } = await getContractsAddress()
     const { deployer } = await getNamedAccounts();
-    // contact address taken from here: https://www.custonomy.io/supported-tokens/usd-coin/usdc-on-harmony
-    const oneusdcAddress = "0x985458E523dB3d53125813eD68c274899e9DfAb4"; // 1USDC
-    const perpEngine = await ethers.getContractAt("PerpEngine", perpEngineAddress);
+    const perpEngine = await ethers.getContractAt("PerpEngine", perpEngineAddress, signer);
     if (!await perpEngine.isInitialized()) {
       const tx = await perpEngine.initialize(
         clearinghouseAddress,
         offchainExchangeAddress,
-        oneusdcAddress,
+        token0Address,
         endpointAddress,
         deployer
       );
@@ -187,28 +231,32 @@ async function perpEngineInitializer() {
       const receipt = await tx.wait();
       console.log("PerpEngine initialization ...", receipt.gasUsed)
     } else {
-      console.log("PerpEngine already initialized")
+      console.log(`PerpEngine (${perpEngineAddress}) already initialized"`)
     }
   } catch (error) {
     console.error("Initialization failed:", error);
     if (error.transaction) {
       console.error("Failed transaction:", error.transaction);
     }
+    throw(error)
   }
 }
 
-async function arbAirdropInitializer() {
+// token address taken from https://explorer.harmony.one/address/0xcf664087a5bb0237a0bad6742852ec6c8d69a27a 
+//const airdropTokenAddress = "0xcf664087a5bb0237a0bad6742852ec6c8d69a27a"
+
+async function arbAirdropInitializer(signer: Signer) {
   try {
     const {
       sanctions: sanctionsAddress,
       arbAirdrop: arbAirdropAddress,
+      quoteToken: token0Address
     } = await getContractsAddress()
-    // token address taken from https://explorer.harmony.one/address/0xcf664087a5bb0237a0bad6742852ec6c8d69a27a 
-    const airdropTokenAddress = "0xcf664087a5bb0237a0bad6742852ec6c8d69a27a"
-    const arbAirdrop = await ethers.getContractAt("ArbAirdrop", arbAirdropAddress);
+
+    const arbAirdrop = await ethers.getContractAt("ArbAirdrop", arbAirdropAddress, signer);
     if (!await arbAirdrop.isInitialized()) {
       const tx = await arbAirdrop.initialize(
-        airdropTokenAddress,
+        token0Address,
         sanctionsAddress
       );
       console.log("Initialization transaction sent:", tx.hash);
@@ -222,16 +270,37 @@ async function arbAirdropInitializer() {
     if (error.transaction) {
       console.error("Failed transaction:", error.transaction);
     }
+    throw(error)
   }
 }
 
 async function main() {
-  await verifierInitializer()
-  await endPointInitializer()
-  await clearinghouseInitializer()
-  await spotEngineInitializer()
-  await perpEngineInitializer()
-  await arbAirdropInitializer()
+  try {
+    const {
+      spotEngine: spotEngineAddress,
+      perpEngine: perpEngineAddress,
+    } = await getContractsAddress()
+    
+    const signer = await getSigner()
+  
+    await verifierInitializer(signer)
+    await clearinghouseInitializer(signer)
+    await arbAirdropInitializer(signer)
+  
+    await addEngine(spotEngineAddress, EngineType.SPOT)
+    await addEngine(perpEngineAddress, EngineType.PERP)
+
+    // requires clearinghouse addEngine
+    await offchainExchangeInitializer(signer)
+    await endPointInitializer(signer)
+
+    await addProduct()
+    
+  } catch (e) {
+    console.log(e)
+    console.error('Excecution stop due to previous error')
+  }
+
 }
 
 main()

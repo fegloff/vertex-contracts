@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 
 export const config = {
-  isHarmony: process.env.NETWORK === 'harmony',
+  isHarmony: process.env.NETWORK === 'harmony' || process.env.NETWORK === 'mainnet',
   mainnet: {
     privateKey: process.env.PRIVATE_KEY ?? '',
     networkUrl: 'https://api.harmony.one',
@@ -11,7 +11,8 @@ export const config = {
   },
   testnet: {
     privateKey: process.env.PRIVATE_KEY ?? '',
-    networkUrl: 'https://api.s0.t.hmny.io',
+    networkUrl: 'https://api.s0.b.hmny.io',
+    // networkUrl: 'https://api.s0.t.hmny.io',
     chainId: 1666700000,
   },
   hardhat: {

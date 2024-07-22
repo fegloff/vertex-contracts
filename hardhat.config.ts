@@ -29,13 +29,13 @@ const config: HardhatUserConfig = {
   defaultNetwork: 'testnet',
   networks: {
     'mainnet': {
-      url: configApp.config.mainnet.networkUrl, // Make sure this matches your node's host and port
-      chainId: configApp.config.mainnet.chainId, // Make sure this matches your node's chain ID
+      url: configApp.config.mainnet.networkUrl,
+      chainId: configApp.config.mainnet.chainId,
       accounts: [configApp.config.mainnet.privateKey],
     },
     'testnet': {
-      url: configApp.config.testnet.networkUrl, // Make sure this matches your node's host and port
-      chainId: configApp.config.testnet.chainId, // Make sure this matches your node's chain ID
+      url: configApp.config.testnet.networkUrl, 
+      chainId: configApp.config.testnet.chainId,
       accounts: [configApp.config.testnet.privateKey],
     },
     'localhost': {

@@ -6,6 +6,7 @@ import * as hre from "hardhat";
 import { deployContractsInDir,
   deployContractWithParams,
   getTokenName,
+  isHarmony,
   QUOTE_TOKEN_ID,
   USDC_TOKEN_ID
 } from "./helpers/helper";
@@ -38,11 +39,12 @@ async function mocks_deploy() {
 
   await deployContractWithParams('MockSanctions', deploy, get, deployer, initialSanctionedAddresses);
 
-  const tokenName0 = getTokenName(QUOTE_TOKEN_ID)
-  const tokenName23 = getTokenName(USDC_TOKEN_ID)
-
-  await deployContractWithParams('MockQuoteToken', deploy, get, deployer, tokenName0, "USDC", 6);
-  await deployContractWithParams('MockUsdcToken', deploy, get, deployer, tokenName23, "USDC", 6); 
+  if (!isHarmony()) {
+    const tokenName0 = getTokenName(QUOTE_TOKEN_ID)
+    const tokenName23 = getTokenName(USDC_TOKEN_ID)
+    await deployContractWithParams('MockQuoteToken', deploy, get, deployer, tokenName0, "USDC", 6);
+    await deployContractWithParams('MockUsdcToken', deploy, get, deployer, tokenName23, "USDC", 6); 
+  }
 }
 
 async function main() {

@@ -171,6 +171,35 @@ async function verifierInitializer(signer: Signer) {
   }
 }
 
+export async function vertexTokenInitializer(signer: Signer) {
+  try {
+    const {
+      vertexToken: vertexTokenAddress,
+      sanctions: sanctionsAddress,
+    } = await getContractsAddress()
+
+    const vertexToken = await ethers.getContractAt('VertexToken', vertexTokenAddress, signer);
+
+    if (!await vertexToken.isInitialized()) {
+      const tx = await vertexToken.initialize(
+        sanctionsAddress
+      );
+      console.log("Initialization transaction sent:", tx.hash);
+      const receipt = await tx.wait();
+      console.log('VertexToken initialized...', receipt.gasUsed);
+
+    } else {
+      console.log("VertexToken already initialized")
+    }
+  } catch (error) {
+    console.error("Initialization failed:", error);
+    if (error.transaction) {
+      console.error("Failed transaction:", error.transaction);
+    }
+    throw(error)
+  }
+}
+
 // contact address taken from here: https://www.custonomy.io/supported-tokens/usd-coin/usdc-on-harmony
 // const oneusdcAddress = "0x985458E523dB3d53125813eD68c274899e9DfAb4"; // 1USDC
 async function spotEngineInitializer(signer: Signer) {
@@ -293,7 +322,7 @@ async function main() {
     // requires clearinghouse addEngine
     await offchainExchangeInitializer(signer)
     await endPointInitializer(signer)
-
+    await vertexTokenInitializer(signer)
     await addProduct()
     
   } catch (e) {

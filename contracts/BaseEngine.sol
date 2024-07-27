@@ -2,6 +2,9 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+// solhint-disable-next-line no-global-import
+// solhint-disable-next-line no-console
 import "hardhat/console.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
@@ -40,6 +43,15 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
     event BalanceUpdate(uint32 productId, bytes32 subaccount);
     event ProductUpdate(uint32 productId);
     event QuoteProductUpdate(uint32 isoGroup);
+
+    event PreAddProduct(uint32 indexed productId, string message);
+    event RiskStoreSet(uint32 indexed productId, string message);
+    // event ProductRegistered(uint32 indexed productId, string message);
+    // event ProductIdAdded(uint32 indexed productId, string message);
+    // event MarketUpdated(uint32 indexed productId, string message);
+    // event CrossMaskUpdated(uint32 indexed productId, string message);
+    // event AddProductFailed(uint32 indexed productId, string reason);
+    // event AddProductSuccess(uint32 indexed productId, string message);
 
     function _productUpdate(uint32 productId) internal virtual {}
 
@@ -283,13 +295,51 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
      * @param minSize The minimum size for the product
      * @param lpSpreadX18 The liquidity provider spread for the product (fixed-point number with 18 decimals)
      */
+    // function _addProductForId(
+    //     uint32 productId,
+    //     RiskHelper.RiskStore memory riskStore,
+    //     address virtualBook,
+    //     int128 sizeIncrement,
+    //     int128 minSize,
+    //     int128 lpSpreadX18
+    // ) internal {
+    //     require(virtualBook != address(0));
+    //     require(
+    //         riskStore.longWeightInitial <= riskStore.longWeightMaintenance &&
+    //             riskStore.shortWeightInitial >=
+    //             riskStore.shortWeightMaintenance,
+    //         ERR_BAD_PRODUCT_CONFIG
+    //     );
+
+    //     _risk().value[productId] = riskStore;
+
+    //     // register product with clearinghouse
+    //     _clearinghouse.registerProduct(productId);
+
+    //     productIds.push(productId);
+
+    //     _exchange().updateMarket(
+    //         productId,
+    //         virtualBook,
+    //         sizeIncrement,
+    //         minSize,
+    //         lpSpreadX18
+    //     );
+
+    //     if (productId < 256) {
+    //         _crossMask().value |= 1 << productId;
+    //     }
+
+    //     emit AddProduct(productId);
+    // }
+
     function _addProductForId(
-        uint32 productId,
-        RiskHelper.RiskStore memory riskStore,
-        address virtualBook,
-        int128 sizeIncrement,
-        int128 minSize,
-        int128 lpSpreadX18
+    uint32 productId,
+    RiskHelper.RiskStore memory riskStore,
+    address virtualBook,
+    int128 sizeIncrement,
+    int128 minSize,
+    int128 lpSpreadX18
     ) internal {
         require(virtualBook != address(0));
         require(
@@ -299,12 +349,16 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
             ERR_BAD_PRODUCT_CONFIG
         );
 
-        _risk().value[productId] = riskStore;
+        emit PreAddProduct(productId, "Starting product addition");
 
-        // register product with clearinghouse
+        _risk().value[productId] = riskStore;
+        emit RiskStoreSet(productId, "Risk store set successfully");
+
         _clearinghouse.registerProduct(productId);
+       // emit ProductRegistered(productId, "Product registered with clearinghouse");
 
         productIds.push(productId);
+        // emit ProductIdAdded(productId, "Product ID added to list");
 
         _exchange().updateMarket(
             productId,
@@ -313,12 +367,15 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
             minSize,
             lpSpreadX18
         );
+        // emit MarketUpdated(productId, "Market updated successfully");
 
         if (productId < 256) {
             _crossMask().value |= 1 << productId;
+            // emit CrossMaskUpdated(productId, "Cross mask updated");
         }
 
         emit AddProduct(productId);
+        // emit AddProductSuccess(productId, "Product added successfully");
     }
 
     function _exchange() internal view returns (IOffchainExchange) {

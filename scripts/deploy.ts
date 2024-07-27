@@ -5,6 +5,7 @@ import * as hre from "hardhat";
 
 import { deployContractsInDir,
   deployContractWithParams,
+  deployContractWithProxy,
   getTokenName,
   isHarmony,
   QUOTE_TOKEN_ID,
@@ -19,7 +20,6 @@ const deployContracts: DeployFunction = async (hre: HardhatRuntimeEnvironment) =
 
   // Specify the directory you want to deploy contracts from
   await deployContractsInDir(path.join(contractsDir, 'libraries'), deploy, get, deployer);
-  await deployContractsInDir(path.join(contractsDir, 'interfaces'), deploy, get, deployer);
   await deployContractsInDir(path.join(contractsDir, 'util'), deploy, get, deployer);
   await deployContractsInDir(path.join(contractsDir, ''), deploy, get, deployer);
 };
@@ -50,6 +50,7 @@ async function mocks_deploy() {
 async function main() {
   await deployContracts(hre)
   await mocks_deploy();
+  await deployContractWithProxy('VertexToken', [], false)
 }
 
 main()

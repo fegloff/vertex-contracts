@@ -1,9 +1,10 @@
-import { ethers, deployments } from 'hardhat';
+import { ethers, deployments, upgrades } from 'hardhat';
 import * as path from "path";
 import * as fs from "fs";
 import * as hre from "hardhat";
 import { config } from '../../config';
 import { ethers as eths, Signer } from 'ethers';
+import { ABI } from 'hardhat-deploy/types';
 export interface Point {
   x: eths.BigNumber;
   y: eths.BigNumber;
@@ -14,6 +15,87 @@ export const USDC_TOKEN_ID = 23
 
 export const isHarmony = () => {
   return config.isHarmony
+}
+
+export const getTokenName = (id: number) => {
+  if (id === 0) {
+    return isHarmony() ? 'VRTX_HARMONY' : 'VRTX_HARDHAT'
+  }
+  return isHarmony() ? 'USDC_HARMONY' : 'USDC_HARDHAT'
+}
+
+export async function deployContractWithProxy(
+  contractName: string,
+  initArgs = [],
+  initialize = true
+) {
+  const { get, save } = hre.deployments;
+  
+  try {
+
+    const existingDeployment = await get(contractName).catch(() => undefined);
+
+    if (existingDeployment) {
+      console.log(`Contract ${contractName} already deployed at address:`, 
+        existingDeployment.address);
+      console.log(`${contractName} implementation deployed to:`, 
+        await upgrades.erc1967.getImplementationAddress(existingDeployment.address));
+      console.log(`${contractName} admin deployed to:`, 
+        await upgrades.erc1967.getAdminAddress(existingDeployment.address));
+      
+      const Contract = await ethers.getContractFactory(contractName);
+      return Contract.attach(existingDeployment.address);
+    }
+
+    console.log(`Deploying ${contractName}...`);
+
+    const Contract = await ethers.getContractFactory(contractName);
+    
+    let contract;
+    
+    if (initialize) {
+      contract = await upgrades.deployProxy(Contract, initArgs, {
+        initializer: 'initialize',
+        kind: 'transparent'
+      });
+    } else {
+      contract = await upgrades.deployProxy(Contract, [], {
+        initializer: false,
+        kind: 'transparent'
+      });
+    }
+  
+    await contract.deployed();
+  
+    const adminAddress = await upgrades.erc1967.getAdminAddress(contract.address)
+    const implementationAddress = await upgrades.erc1967.getImplementationAddress(contract.address)
+    
+    console.log(`${contractName} proxy deployed to:`, contract.address);
+    console.log(`${contractName} implementation deployed to:`, implementationAddress);
+    console.log(`${contractName} admin deployed to:`, adminAddress);
+  
+    await save(contractName, {
+      abi: Contract.interface.format('json') as ABI,
+      address: contract.address,
+      implementation: implementationAddress,
+      args: initArgs,
+      metadata: JSON.stringify({
+        proxyAdmin: adminAddress,
+        isProxy: true,
+        proxyType: 'transparent',
+      }),
+    });
+
+    return contract;
+
+  } catch (error) {
+    if (error.message.includes("abstract and can't be deployed")) {
+      console.warn(`Skipping abstract contract ${contractName}`);
+    } else {
+      console.error(`Error deploying contract ${contractName}:`, error);
+    }
+    return null;
+  }
 }
 
 export const deployContractsInDir = async (
@@ -33,15 +115,8 @@ export const deployContractsInDir = async (
       const contractName = path.parse(entry.name).name;
 
       try {
-        let existingDeployment;
 
-        try {
-          existingDeployment = await getFn(contractName);
-        } catch (error) {
-          if (!error.message.includes("No deployment found for")) {
-            throw error;
-          }
-        }
+        const existingDeployment = await getFn(contractName).catch(() => undefined);
 
         if (existingDeployment) {
           console.log(
@@ -88,13 +163,6 @@ export const deployContractsInDir = async (
   }
 };
 
-export const getTokenName = (id: number) => {
-  if (id === 0) {
-    return isHarmony() ? 'VRTX_HARMONY' : 'VRTX_HARDHAT'
-  }
-  return isHarmony() ? 'USDC_HARMONY' : 'USDC_HARDHAT'
-}
-
 export const deployContractWithParams = async (
   contractName: string,
   deployFn: (
@@ -105,15 +173,10 @@ export const deployContractWithParams = async (
   deployer: string,
   ...constructorArgs: any[]
 ) => {
+  
   try {
-    let existingDeployment;
-    try {
-      existingDeployment = await getFn(contractName);
-    } catch (error) {
-      if (!error.message.includes("No deployment found for")) {
-        throw error;
-      }
-    }
+
+    const existingDeployment = await getFn(contractName).catch(() => undefined);
 
     if (existingDeployment) {
       console.log(
@@ -253,6 +316,9 @@ export async function getContractsAddress() {
   const usdcToken = await deployments.get('MockUsdcToken')
   const usdcTokenAddress = usdcToken.address
 
+  const vertexTokenContract = await deployments.get("VertexToken");
+  const vertexTokenAddress = vertexTokenContract.address;
+
   return {
     eRC20Helper: eRC20HelperAddress, // 0xf98A133d48365B9e20fdf2876714C49F56bf911f
     logger: loggerAddress, // 0x70802DB1d4b25eb8019867Df7b9d8D5e2794B4db
@@ -273,5 +339,6 @@ export async function getContractsAddress() {
     sanctions: sanctionsAddress, // 0xD571511D563265e03FfEBa875274bDd71E3E3d80
     quoteToken: quoteTokenAddress,
     usdcToken: usdcTokenAddress,
+    vertexToken: vertexTokenAddress,
   };
 }

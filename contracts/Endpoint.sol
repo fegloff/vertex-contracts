@@ -16,11 +16,8 @@ import "./interfaces/engine/ISpotEngine.sol";
 import "./interfaces/engine/IPerpEngine.sol";
 import "./interfaces/IERC20Base.sol";
 import "./interfaces/IVerifier.sol";
+import "./interfaces/ISanctionsList.sol";
 import "./Version.sol";
-
-interface ISanctionsList {
-    function isSanctioned(address addr) external view returns (bool);
-}
 
 contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
     using ERC20Helper for IERC20Base;

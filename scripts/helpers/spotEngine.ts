@@ -2,7 +2,7 @@ import { ethers } from 'hardhat';
 import { getContractsAddress,
   getSigner,
   getTokenName,
-  USDC_TOKEN_ID
+  SPOT_VRTX_TOKEN_ID
 } from './helper';
 // npx hardhat run scripts/spotEngine.ts --network mainnet
 // 
@@ -11,15 +11,15 @@ export async function addProduct() {
   try {
     const {
       spotEngine: spotEngineAddress, 
-      offchainExchange: offchainExchangeAddress,
+      orderBook: orderBookAddress,
       usdcToken: token23Address
     } = await getContractsAddress()
     
     const signer = await getSigner()
 
-    const usdcTokenName = getTokenName(USDC_TOKEN_ID)
+    const usdcTokenName = getTokenName(SPOT_VRTX_TOKEN_ID)
 
-    console.log(spotEngineAddress, offchainExchangeAddress)
+    console.log(spotEngineAddress, orderBookAddress)
 
     const spotEngine = await ethers.getContractAt("SpotEngine", spotEngineAddress, signer);
   
@@ -28,8 +28,7 @@ export async function addProduct() {
     console.log("SpotEngine initialized::::::::", isInitialized);
 
     // Define the parameters for addProduct
-    const productId = USDC_TOKEN_ID;
-    const book = offchainExchangeAddress; // offchainExchangeAddress; // Address of your OffchainExchange contract
+    const productId = SPOT_VRTX_TOKEN_ID;
     const sizeIncrement = ethers.utils.parseUnits("0.01", 18);
     const minSize = ethers.utils.parseUnits("1", 18);
     const lpSpreadX18 = ethers.utils.parseUnits("0.001", 18);
@@ -52,7 +51,7 @@ export async function addProduct() {
     
     const tx = await spotEngine.addProduct(
       productId,
-      book,
+      orderBookAddress,
       sizeIncrement,
       minSize,
       lpSpreadX18,

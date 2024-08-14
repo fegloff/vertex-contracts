@@ -10,18 +10,23 @@ export interface Point {
   y: eths.BigNumber;
 }
 
-export const QUOTE_TOKEN_ID = 0
-export const USDC_TOKEN_ID = 23
+export const SPOT_QUOTE_TOKEN_ID = 0
+export const SPOT_VRTX_TOKEN_ID = 23
+export const PERP_USDC_TOKEN_ID = 101
 
 export const isHarmony = () => {
   return config.isHarmony
 }
 
 export const getTokenName = (id: number) => {
-  if (id === 0) {
-    return isHarmony() ? 'VRTX_HARMONY' : 'VRTX_HARDHAT'
-  }
-  return isHarmony() ? 'USDC_HARMONY' : 'USDC_HARDHAT'
+  switch (id) {
+    case 0: 
+      return isHarmony() ? 'USDC_HARMONY' : 'USDC_HARDHAT'
+    case 23: 
+      return isHarmony() ? 'VRTX_HARMONY' : 'VRTX_HARDHAT'
+    case 101:
+      return 'PERP_USDC';
+    }
 }
 
 export async function deployContractWithProxy(
@@ -319,6 +324,15 @@ export async function getContractsAddress() {
   const vertexTokenContract = await deployments.get("VertexToken");
   const vertexTokenAddress = vertexTokenContract.address;
 
+  const perpOracleContract = await deployments.get("PerpOracle");
+  const perpOracleAddress = perpOracleContract.address;
+
+  const perpetualContract = await deployments.get("Perpetual");
+  const perpetualAddress = perpetualContract.address;
+
+  const orderBookContract = await deployments.get("OrderBook");
+  const orderBookAddress = orderBookContract.address;
+
   return {
     eRC20Helper: eRC20HelperAddress, // 0xf98A133d48365B9e20fdf2876714C49F56bf911f
     logger: loggerAddress, // 0x70802DB1d4b25eb8019867Df7b9d8D5e2794B4db
@@ -340,5 +354,8 @@ export async function getContractsAddress() {
     quoteToken: quoteTokenAddress,
     usdcToken: usdcTokenAddress,
     vertexToken: vertexTokenAddress,
+    perpOracle: perpOracleAddress,
+    perpetual: perpetualAddress,
+    orderBook: orderBookAddress
   };
 }

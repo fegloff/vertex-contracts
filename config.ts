@@ -4,6 +4,7 @@ dotenv.config()
 
 export const config = {
   isHarmony: process.env.NETWORK === 'harmony' || process.env.NETWORK === 'mainnet',
+  network: process.env.NETWORK,
   mainnet: {
     privateKey: process.env.PRIVATE_KEY ?? '',
     networkUrl: 'https://api.harmony.one',

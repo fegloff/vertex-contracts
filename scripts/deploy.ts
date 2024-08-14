@@ -2,15 +2,17 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 import * as path from "path";
 import * as hre from "hardhat";
-
+import { ethers } from "ethers";
 import { deployContractsInDir,
   deployContractWithParams,
   deployContractWithProxy,
   getTokenName,
   isHarmony,
-  QUOTE_TOKEN_ID,
-  USDC_TOKEN_ID
+  PERP_USDC_TOKEN_ID,
+  SPOT_QUOTE_TOKEN_ID,
+  SPOT_VRTX_TOKEN_ID
 } from "./helpers/helper";
+
 
 export const contractsDir = path.join(__dirname, "../contracts");
 
@@ -24,7 +26,7 @@ const deployContracts: DeployFunction = async (hre: HardhatRuntimeEnvironment) =
   await deployContractsInDir(path.join(contractsDir, ''), deploy, get, deployer);
 };
 
-async function mocks_deploy() {
+async function mocksDeploy() {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy, get } = hre.deployments;
   
@@ -40,17 +42,47 @@ async function mocks_deploy() {
   await deployContractWithParams('MockSanctions', deploy, get, deployer, initialSanctionedAddresses);
 
   if (!isHarmony()) {
-    const tokenName0 = getTokenName(QUOTE_TOKEN_ID)
-    const tokenName23 = getTokenName(USDC_TOKEN_ID)
+    const tokenName0 = getTokenName(SPOT_QUOTE_TOKEN_ID)
+    const tokenName23 = getTokenName(SPOT_VRTX_TOKEN_ID)
     await deployContractWithParams('MockQuoteToken', deploy, get, deployer, tokenName0, "USDC", 6);
     await deployContractWithParams('MockUsdcToken', deploy, get, deployer, tokenName23, "USDC", 6); 
   }
 }
 
+async function perpetualDeploy() {
+  const { deployer } = await hre.getNamedAccounts();
+  const { deploy, get } = hre.deployments;
+  
+  console.log("Deploying contracts with the account:", deployer);
+  
+  const useChainlink = isHarmony() ? true : false; 
+
+  const oracleAddress = await deployContractWithParams("PerpOracle", deploy, get, deployer, useChainlink);
+  
+  if (oracleAddress) {    
+    const perpEngine = await get("PerpEngine")
+    const perpEngineAddress = perpEngine.address;
+    const productId = PERP_USDC_TOKEN_ID;
+    const priceFeedIdentifier = ethers.utils.formatBytes32String("USDC/USD");
+    await deployContractWithParams(
+      "Perpetual", 
+      deploy, 
+      get, 
+      deployer, 
+      productId,
+      priceFeedIdentifier,
+      perpEngineAddress,
+      oracleAddress
+    );
+  }
+}
+
+
 async function main() {
   await deployContracts(hre)
-  await mocks_deploy();
+  await mocksDeploy();
   await deployContractWithProxy('VertexToken', [], false)
+  await perpetualDeploy()
 }
 
 main()

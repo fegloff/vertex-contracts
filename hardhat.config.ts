@@ -15,6 +15,9 @@ import 'hardhat-contract-sizer';
 import 'hardhat-abi-exporter';
 import { HardhatUserConfig } from 'hardhat/config';
 import * as configApp from './config';
+import * as path from 'path';
+
+const networkFolder = configApp.config.network || 'default';
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -59,7 +62,7 @@ const config: HardhatUserConfig = {
     runOnCompile: true,
   },
   abiExporter: {
-    path: './abis',
+    path: path.join(__dirname, 'abis', networkFolder), // './abis',
     runOnCompile: true,
     clear: true,
     flat: true,
@@ -75,8 +78,8 @@ const config: HardhatUserConfig = {
   paths: {
     sources: './contracts',
     tests: './test',
-    cache: './cache',
-    artifacts: './artifacts',
+    cache: path.join(__dirname, 'cache', networkFolder),
+    artifacts: path.join(__dirname, 'artifacts', networkFolder),
     deploy:'./scripts/deploy'
   },
 };

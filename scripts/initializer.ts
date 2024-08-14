@@ -1,9 +1,9 @@
 import { ethers, getNamedAccounts } from 'hardhat';
-import { generateTestPoints, getContractsAddress, getSigner, getSpread } from './helpers/helper';
+import { generateTestPoints, getContractsAddress, getSigner, getSpread, getTokenName, PERP_USDC_TOKEN_ID } from './helpers/helper';
 import { Signer } from 'ethers';
 import { addEngine, EngineType } from './helpers/clearinghouse';
 import { addProduct } from './helpers/spotEngine';
-
+import { addPerpProduct } from './helpers/perpEngine';
 
 export async function offchainExchangeInitializer(signer: Signer) {
   try {
@@ -237,40 +237,6 @@ async function spotEngineInitializer(signer: Signer) {
   }
 }
 
-async function perpEngineInitializer(signer: Signer) {
-  try {
-    const {
-      clearinghouse: clearinghouseAddress,
-      endpoint: endpointAddress,
-      offchainExchange: offchainExchangeAddress,
-      perpEngine: perpEngineAddress,
-      quoteToken: token0Address,
-    } = await getContractsAddress()
-    const { deployer } = await getNamedAccounts();
-    const perpEngine = await ethers.getContractAt("PerpEngine", perpEngineAddress, signer);
-    if (!await perpEngine.isInitialized()) {
-      const tx = await perpEngine.initialize(
-        clearinghouseAddress,
-        offchainExchangeAddress,
-        token0Address,
-        endpointAddress,
-        deployer
-      );
-      console.log("Initialization transaction sent:", tx.hash);
-      const receipt = await tx.wait();
-      console.log("PerpEngine initialization ...", receipt.gasUsed)
-    } else {
-      console.log(`PerpEngine (${perpEngineAddress}) already initialized"`)
-    }
-  } catch (error) {
-    console.error("Initialization failed:", error);
-    if (error.transaction) {
-      console.error("Failed transaction:", error.transaction);
-    }
-    throw(error)
-  }
-}
-
 // token address taken from https://explorer.harmony.one/address/0xcf664087a5bb0237a0bad6742852ec6c8d69a27a 
 //const airdropTokenAddress = "0xcf664087a5bb0237a0bad6742852ec6c8d69a27a"
 
@@ -303,6 +269,7 @@ async function arbAirdropInitializer(signer: Signer) {
   }
 }
 
+
 async function main() {
   try {
     const {
@@ -324,6 +291,7 @@ async function main() {
     await endPointInitializer(signer)
     await vertexTokenInitializer(signer)
     await addProduct()
+    await addPerpProduct()
     
   } catch (e) {
     console.log(e)

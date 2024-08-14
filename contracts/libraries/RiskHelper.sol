@@ -10,7 +10,6 @@ import "./MathHelper.sol";
 /// @dev Provides basic math functions
 library RiskHelper {
     using MathSD21x18 for int128;
-
     struct RiskStore {
         // these weights are all
         // between 0 and 2

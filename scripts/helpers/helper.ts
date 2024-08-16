@@ -5,29 +5,24 @@ import * as hre from "hardhat";
 import { config } from '../../config';
 import { ethers as eths, Signer } from 'ethers';
 import { ABI } from 'hardhat-deploy/types';
+import { TOKENS } from './constants';
 export interface Point {
   x: eths.BigNumber;
   y: eths.BigNumber;
 }
+// export const isLocalDeployment = config.isLocalDeployment;
 
-export const SPOT_QUOTE_TOKEN_ID = 0
-export const SPOT_VRTX_TOKEN_ID = 23
-export const PERP_USDC_TOKEN_ID = 101
+const zeroAddress = ethers.constants.AddressZero;
 
-export const isHarmony = () => {
-  return config.isHarmony
+export function isZeroAddress(address: string): boolean {
+  return address === zeroAddress;
 }
 
 export const getTokenName = (id: number) => {
-  switch (id) {
-    case 0: 
-      return isHarmony() ? 'USDC_HARMONY' : 'USDC_HARDHAT'
-    case 23: 
-      return isHarmony() ? 'VRTX_HARMONY' : 'VRTX_HARDHAT'
-    case 101:
-      return 'PERP_USDC';
-    }
-}
+  const token = Object.values(TOKENS).find(t => t.id === id);
+  if (!token) return null;
+  return token.name;
+};
 
 export async function deployContractWithProxy(
   contractName: string,
@@ -35,19 +30,19 @@ export async function deployContractWithProxy(
   initialize = true
 ) {
   const { get, save } = hre.deployments;
-  
+
   try {
 
     const existingDeployment = await get(contractName).catch(() => undefined);
 
     if (existingDeployment) {
-      console.log(`Contract ${contractName} already deployed at address:`, 
+      console.log(`Contract ${contractName} already deployed at address:`,
         existingDeployment.address);
-      console.log(`${contractName} implementation deployed to:`, 
+      console.log(`${contractName} implementation deployed to:`,
         await upgrades.erc1967.getImplementationAddress(existingDeployment.address));
-      console.log(`${contractName} admin deployed to:`, 
+      console.log(`${contractName} admin deployed to:`,
         await upgrades.erc1967.getAdminAddress(existingDeployment.address));
-      
+
       const Contract = await ethers.getContractFactory(contractName);
       return Contract.attach(existingDeployment.address);
     }
@@ -55,9 +50,9 @@ export async function deployContractWithProxy(
     console.log(`Deploying ${contractName}...`);
 
     const Contract = await ethers.getContractFactory(contractName);
-    
+
     let contract;
-    
+
     if (initialize) {
       contract = await upgrades.deployProxy(Contract, initArgs, {
         initializer: 'initialize',
@@ -69,16 +64,16 @@ export async function deployContractWithProxy(
         kind: 'transparent'
       });
     }
-  
+
     await contract.deployed();
-  
+
     const adminAddress = await upgrades.erc1967.getAdminAddress(contract.address)
     const implementationAddress = await upgrades.erc1967.getImplementationAddress(contract.address)
-    
+
     console.log(`${contractName} proxy deployed to:`, contract.address);
     console.log(`${contractName} implementation deployed to:`, implementationAddress);
     console.log(`${contractName} admin deployed to:`, adminAddress);
-  
+
     await save(contractName, {
       abi: Contract.interface.format('json') as ABI,
       address: contract.address,
@@ -178,7 +173,7 @@ export const deployContractWithParams = async (
   deployer: string,
   ...constructorArgs: any[]
 ) => {
-  
+
   try {
 
     const existingDeployment = await getFn(contractName).catch(() => undefined);
@@ -213,17 +208,17 @@ export function generateTestPoints(): Point[] {
   for (let i = 1; i <= 8; i++) {
     const privateKey = ethers.utils.hexZeroPad(ethers.utils.hexlify(i), 32);
     const wallet = new ethers.Wallet(privateKey);
-    
+
     // Get the uncompressed public key
     const publicKey = ethers.utils.computePublicKey(wallet.publicKey, false);
-    
+
     // Remove '0x04' prefix from uncompressed public key
     const pubKeyWithoutPrefix = publicKey.slice(4);
-    
+
     // Extract x and y coordinates
     const x = ethers.BigNumber.from('0x' + pubKeyWithoutPrefix.slice(0, 64));
     const y = ethers.BigNumber.from('0x' + pubKeyWithoutPrefix.slice(64));
-    
+
     points.push({ x, y });
   }
   return points;
@@ -232,14 +227,14 @@ export function generateTestPoints(): Point[] {
 export function getSpread(): string {
   // For a basic test setup, let's assume we want to pair two spot products with two perpetual products. We'll use small, sequential numbers for our product IDs to keep things simple.
   // Let's say:
-  
+
   // Spot product 1 is paired with Perpetual product 2
   // Spot product 3 is paired with Perpetual product 4
-  
+
   // To encode this in the _spreads parameter, we would use:
   // 0x0102030400000000
   // Here's the breakdown:
-  
+
   // 01: Spot product ID 1
   // 02: Perpetual product ID 2
   // 03: Spot product ID 3
@@ -315,15 +310,6 @@ export async function getContractsAddress() {
   const sanctionsContract = await deployments.get("MockSanctions");
   const sanctionsAddress = sanctionsContract.address;
 
-  const quoteToken = await deployments.get('MockQuoteToken')
-  const quoteTokenAddress = quoteToken.address
-
-  const usdcToken = await deployments.get('MockUsdcToken')
-  const usdcTokenAddress = usdcToken.address
-
-  const vertexTokenContract = await deployments.get("VertexToken");
-  const vertexTokenAddress = vertexTokenContract.address;
-
   const perpOracleContract = await deployments.get("PerpOracle");
   const perpOracleAddress = perpOracleContract.address;
 
@@ -333,6 +319,33 @@ export async function getContractsAddress() {
   const orderBookContract = await deployments.get("OrderBook");
   const orderBookAddress = orderBookContract.address;
 
+  const perpetualFactoryContract = await deployments.get("PerpetualFactory");
+  const perpetualFactoryAddress = perpetualFactoryContract.address;
+
+  let quoteTokenAddress: string, 
+    vertexTokenAddress: string, 
+    wbtcTokenAddress: string, 
+    ethTokenAddress: string,
+    woneTokenAddress: string,
+    usdtTokenAddress: string;
+  if (!config.isHarmony) {
+    const quoteToken = await deployments.get('MockQuoteToken')
+    quoteTokenAddress = quoteToken.address
+    const vertexTokenContract = await deployments.get("VertexToken");
+    vertexTokenAddress = vertexTokenContract.address;
+    const usdtToken = await deployments.get('MockUsdcToken')
+    usdtTokenAddress = usdtToken.address
+    wbtcTokenAddress = "0x0000000000000000000000000000000000000000";
+    ethTokenAddress = "0x0000000000000000000000000000000000000000";
+    woneTokenAddress = "0x0000000000000000000000000000000000000000";
+  } else {
+    quoteTokenAddress = "0xBC594CABd205bD993e7FfA6F3e9ceA75c1110da5";
+    vertexTokenAddress = "0x0000000000000000000000000000000000000000";
+    wbtcTokenAddress = "0x118f50d23810c5E09Ebffb42d7D3328dbF75C2c2";
+    ethTokenAddress = "0x4cC435d7b9557d54d6EF02d69Bbf72634905Bf11";
+    woneTokenAddress = "0xcF664087a5bB0237a0BAd6742852ec6c8d69A27";
+    usdtTokenAddress = "0xF2732e8048f1a411C63e2df51d08f4f52E598005";
+  }
   return {
     eRC20Helper: eRC20HelperAddress, // 0xf98A133d48365B9e20fdf2876714C49F56bf911f
     logger: loggerAddress, // 0x70802DB1d4b25eb8019867Df7b9d8D5e2794B4db
@@ -351,11 +364,53 @@ export async function getContractsAddress() {
     verifier: verifierAddress, // 0x948d1ec536D9AbCbD97f5B318e6F2a4BEfd1f8F0
     sequencer: sequencerAddress, // 0xD3E86D822911bFB87eAcCa74fFC6658968BAe86E
     sanctions: sanctionsAddress, // 0xD571511D563265e03FfEBa875274bDd71E3E3d80
-    quoteToken: quoteTokenAddress,
-    usdcToken: usdcTokenAddress,
-    vertexToken: vertexTokenAddress,
     perpOracle: perpOracleAddress,
     perpetual: perpetualAddress,
-    orderBook: orderBookAddress
+    orderBook: orderBookAddress,
+    perpetualFactory: perpetualFactoryAddress,
+    quoteToken: quoteTokenAddress,
+    wbtcToken: wbtcTokenAddress,
+    vertexToken: vertexTokenAddress,
+    ethToken: ethTokenAddress,
+    usdtToken: usdtTokenAddress,
+    woneToken: woneTokenAddress,
   };
 }
+
+
+
+
+
+export { TOKENS };
+// export const getTokenName = (id: number) => {
+//   switch (id) {
+//     case 0: 
+//       return !isLocalDeployment() ? 'USDC_HARMONY' : 'USDC_HARDHAT'
+//     case 1: 
+//       return !isLocalDeployment() ? 'VRTX_HARMONY' : 'VRTX_HARDHAT'
+//     case 3: 
+//       return !isLocalDeployment() ? 'WBTC_HARMONY' : 'WBTC_HARDHAT'
+//     case 2:
+//       return 'PERP_WBTC';
+//     case 4:
+//       return 'PERP_ETH';
+//     }
+// }
+
+// const getTokenName = (id: number) => {
+//   const token = [...SPOT_TOKENS, ...PERP_TOKENS].find(t => t.id === id);
+//   if (!token) return null;
+
+//   const prefix = PERP_TOKENS.some(t => t.id === id) ? 'PERP_' : '';
+//   const suffix = !isLocalDeployment() ? '_HARMONY' : '_HARDHAT';
+
+//   return `${prefix}${token.name}${suffix}`;
+// };
+
+
+// export const SPOT_QUOTE_TOKEN_ID = 0
+// export const SPOT_VRTX_TOKEN_ID = 1
+// export const SPOT_WBTC_TOKEN_ID = 3
+
+// export const PERP_WBTC_TOKEN_ID = 2
+// export const PERP_ETH_TOKEN_ID = 4

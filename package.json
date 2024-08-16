@@ -4,6 +4,7 @@
   "license": "UNLICENSED",
   "description": "EVM implementation of Vertex",
   "scripts": {
+    "clean": "rimraf artifacts abis cache deployments",
     "prepare": "husky install",
     "lint": "eslint './**/*.ts' --fix && prettier --write './**/*.{ts,sol}' --loglevel silent && solhint --fix 'contracts/**/*.sol'",
     "compile": "hardhat compile",

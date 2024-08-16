@@ -4,6 +4,7 @@ dotenv.config()
 
 export const config = {
   isHarmony: process.env.NETWORK === 'harmony' || process.env.NETWORK === 'mainnet',
+  isLocal: process.env.NETWORK === 'localhost' || process.env.NETWORK === 'hardhat', // || process.env.NETWORK === 'local'
   network: process.env.NETWORK,
   mainnet: {
     privateKey: process.env.PRIVATE_KEY ?? '',

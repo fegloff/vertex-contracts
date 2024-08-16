@@ -6,13 +6,9 @@ import { ethers } from "ethers";
 import { deployContractsInDir,
   deployContractWithParams,
   deployContractWithProxy,
-  getTokenName,
-  isHarmony,
-  PERP_USDC_TOKEN_ID,
-  SPOT_QUOTE_TOKEN_ID,
-  SPOT_VRTX_TOKEN_ID
+  TOKENS,
 } from "./helpers/helper";
-
+import { config } from '../config'
 
 export const contractsDir = path.join(__dirname, "../contracts");
 
@@ -41,9 +37,9 @@ async function mocksDeploy() {
 
   await deployContractWithParams('MockSanctions', deploy, get, deployer, initialSanctionedAddresses);
 
-  if (!isHarmony()) {
-    const tokenName0 = getTokenName(SPOT_QUOTE_TOKEN_ID)
-    const tokenName23 = getTokenName(SPOT_VRTX_TOKEN_ID)
+  if (!config.isHarmony) {
+    const tokenName0 = TOKENS.SPOT_QUOTE.name
+    const tokenName23 = TOKENS.SPOT_USTD.name//  SPOT_VRTX.name
     await deployContractWithParams('MockQuoteToken', deploy, get, deployer, tokenName0, "USDC", 6);
     await deployContractWithParams('MockUsdcToken', deploy, get, deployer, tokenName23, "USDC", 6); 
   }
@@ -55,14 +51,14 @@ async function perpetualDeploy() {
   
   console.log("Deploying contracts with the account:", deployer);
   
-  const useChainlink = isHarmony() ? true : false; 
+  const useChainlink = config.isHarmony; 
 
   const oracleAddress = await deployContractWithParams("PerpOracle", deploy, get, deployer, useChainlink);
   
   if (oracleAddress) {    
     const perpEngine = await get("PerpEngine")
     const perpEngineAddress = perpEngine.address;
-    const productId = PERP_USDC_TOKEN_ID;
+    const productId = TOKENS.PERP_WBTC.id;
     const priceFeedIdentifier = ethers.utils.formatBytes32String("USDC/USD");
     await deployContractWithParams(
       "Perpetual", 

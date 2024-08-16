@@ -10,7 +10,6 @@ interface IPerpOracle {
     function createTokenPair(string memory base, string memory quote) external pure returns (bytes32);
 }
 
-
 contract Perpetual {
     IPerpEngine public perpEngine;
     IPerpOracle public oracle;

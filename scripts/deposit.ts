@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { getContractsAddress, getSigner, getTokenName, SPOT_QUOTE_TOKEN_ID } from "./helpers/helper";
+import { getContractsAddress, getSigner, TOKENS } from "./helpers/helper";
 
 async function deposit() {
   try {
@@ -14,11 +14,11 @@ async function deposit() {
   
     const spotEngine = await ethers.getContractAt("SpotEngine", spotEngineAddress);
     
-    const productId = SPOT_QUOTE_TOKEN_ID
+    const productId = TOKENS.SPOT_QUOTE.id
     
     const tokenAddress = await spotEngine.getToken(productId)
     
-    const tokenName = getTokenName(SPOT_QUOTE_TOKEN_ID)
+    const tokenName = TOKENS.SPOT_QUOTE.name
 
     const token = await ethers.getContractAt('MockUsdcToken', tokenAddress);
 

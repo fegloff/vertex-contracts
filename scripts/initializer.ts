@@ -1,9 +1,10 @@
 import { ethers, getNamedAccounts } from 'hardhat';
-import { generateTestPoints, getContractsAddress, getSigner, getSpread, getTokenName, PERP_USDC_TOKEN_ID } from './helpers/helper';
+import { generateTestPoints, getContractsAddress, getSigner, getSpread } from './helpers/helper';
 import { Signer } from 'ethers';
 import { addEngine, EngineType } from './helpers/clearinghouse';
-import { addProduct } from './helpers/spotEngine';
-import { addPerpProduct } from './helpers/perpEngine';
+import { addSpotProducts } from './helpers/spotEngine';
+import { addPerpProducts } from './helpers/perpEngine';
+import { createPerpContracts } from './helpers/perpetual';
 
 export async function offchainExchangeInitializer(signer: Signer) {
   try {
@@ -290,8 +291,9 @@ async function main() {
     await offchainExchangeInitializer(signer)
     await endPointInitializer(signer)
     await vertexTokenInitializer(signer)
-    await addProduct()
-    await addPerpProduct()
+    await addSpotProducts()
+    await addPerpProducts()
+    await createPerpContracts()
     
   } catch (e) {
     console.log(e)

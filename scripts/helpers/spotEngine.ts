@@ -1,72 +1,68 @@
 import { ethers } from 'hardhat';
-import { getContractsAddress,
+import {
+  getContractsAddress,
   getSigner,
-  getTokenName,
-  SPOT_VRTX_TOKEN_ID
+  isZeroAddress,
 } from './helper';
-// npx hardhat run scripts/spotEngine.ts --network mainnet
-// 
+import { 
+  TOKENS,
+  ENGINE_TYPE
+} from './constants';
+import { config } from '../../config'
 
-export async function addProduct() {
+export async function addSpotProducts() {
   try {
     const {
       spotEngine: spotEngineAddress, 
       orderBook: orderBookAddress,
-      usdcToken: token23Address
+      ...tokenAdress
     } = await getContractsAddress()
     
     const signer = await getSigner()
 
-    const usdcTokenName = getTokenName(SPOT_VRTX_TOKEN_ID)
-
     console.log(spotEngineAddress, orderBookAddress)
 
     const spotEngine = await ethers.getContractAt("SpotEngine", spotEngineAddress, signer);
-  
+    const orderBook = await ethers.getContractAt("OrderBook", orderBookAddress, signer);
+    
     const isInitialized = await spotEngine.isInitialized();
 
-    console.log("SpotEngine initialized::::::::", isInitialized);
-
-    // Define the parameters for addProduct
-    const productId = SPOT_VRTX_TOKEN_ID;
-    const sizeIncrement = ethers.utils.parseUnits("0.01", 18);
-    const minSize = ethers.utils.parseUnits("1", 18);
-    const lpSpreadX18 = ethers.utils.parseUnits("0.001", 18);
-  
-    const productConfig = {
-      token: token23Address,
-      interestInflectionUtilX18: ethers.utils.parseUnits("0.8", 18),
-      interestFloorX18: ethers.utils.parseUnits("0.01", 18),
-      interestSmallCapX18: ethers.utils.parseUnits("0.04", 18),
-      interestLargeCapX18: ethers.utils.parseUnits("1", 18)
-    };
-  
-    const riskStore = {
-      longWeightInitial: ethers.utils.parseUnits("1", 9),
-      shortWeightInitial: ethers.utils.parseUnits("1", 9),
-      longWeightMaintenance: ethers.utils.parseUnits("1", 9),
-      shortWeightMaintenance: ethers.utils.parseUnits("1", 9),
-      priceX18: ethers.utils.parseUnits("1", 18)
-    };
-    
-    const tx = await spotEngine.addProduct(
-      productId,
-      orderBookAddress,
-      sizeIncrement,
-      minSize,
-      lpSpreadX18,
-      productConfig,
-      riskStore,
-    );
-  
-    const receipt = await tx.wait();
-  
-    for (const event of receipt.events) {
-      console.log(`Event: ${event.event}, Data: ${JSON.stringify(event.args)}`);
+    if (isInitialized) {
+      const spotTokens = Object.values(TOKENS).filter(t => t.type === ENGINE_TYPE.SPOT && t.id !== TOKENS.SPOT_QUOTE.id);
+      const sizeIncrement = ethers.utils.parseUnits("0.01", 18);
+      const minSize = ethers.utils.parseUnits("1", 18);
+      const lpSpreadX18 = ethers.utils.parseUnits("0.001", 18);
+      for (const token of spotTokens) { 
+        const address = tokenAdress[token.addressKey]
+        console.log(config.isHarmony, config.isLocal)
+        const productConfig = {
+          token: address,
+          interestInflectionUtilX18: ethers.utils.parseUnits("0.8", 18),
+          interestFloorX18: ethers.utils.parseUnits("0.01", 18),
+          interestSmallCapX18: ethers.utils.parseUnits("0.04", 18),
+          interestLargeCapX18: ethers.utils.parseUnits("1", 18)
+        };
+        const tx = await spotEngine.addProduct(
+          token.id,
+          orderBookAddress,
+          sizeIncrement,
+          minSize,
+          lpSpreadX18,
+          productConfig,
+          token.risk,
+        );
+        await tx.wait()
+        console.log(`Added product ${token.name} to SpotEngine`);
+        if (!isZeroAddress(address)) {
+          const isPerp = false;
+          console.log(token.id, address)
+          const txOrderBook = await orderBook.addMarket(token.id, address, isPerp);
+          await txOrderBook.wait();
+        }
+      }
+    } else {
+      console.log(`Please initialize the SpotEngine Contract`)
     }
-
-    console.log(`${usdcTokenName} token added as a new product`);
-  
   } catch (error) {
     console.error("SpotEngine addProduct failed:", error);
     if (error.transaction) {

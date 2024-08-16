@@ -1,11 +1,14 @@
 import { ethers } from 'hardhat';
 import { getContractsAddress,
   getSigner,
-  getTokenName,
-  PERP_USDC_TOKEN_ID,
 } from './helper';
+import { 
+  ENGINE_TYPE, 
+  TOKENS 
+} from './constants';
 
-export async function addPerpProduct() {
+
+export async function addPerpProducts() {
   try {
     const {
       perpEngine: perpEngineAddress,
@@ -18,45 +21,34 @@ export async function addPerpProduct() {
     const perpEngine = await ethers.getContractAt("PerpEngine", perpEngineAddress, signer);
     
     if (await perpEngine.isInitialized()) {
+      const perpTokens = Object.values(TOKENS).filter(t => t.type === ENGINE_TYPE.PERP);
+      
       const initialPrice = ethers.utils.parseUnits("1", 18);
 
       const perpOracle = await ethers.getContractAt("PerpOracle", perpOracleAddress, signer);
-      await perpOracle.setCustomPrice(PERP_USDC_TOKEN_ID, initialPrice)
       
-      console.log(`Custom price set for ${getTokenName(PERP_USDC_TOKEN_ID)}, product ID:`, PERP_USDC_TOKEN_ID);
       const sizeIncrement = ethers.utils.parseUnits("0.1", 18); // Adjust as needed
       const minSize = ethers.utils.parseUnits("1", 18); // Adjust as needed
       const lpSpreadX18 = ethers.utils.parseUnits("0.001", 18); // 0.1% spread
-    
-      // Risk parameters
-      // const riskStore = {
-      //   longWeightInitial: ethers.utils.parseUnits("1", 18),
-      //   shortWeightInitial: ethers.utils.parseUnits("1", 18),
-      //   longWeightMaintenance: ethers.utils.parseUnits("0.5", 18),
-      //   shortWeightMaintenance: ethers.utils.parseUnits("0.5", 18),
-      //   priceX18: ethers.utils.parseUnits("1", 18)
-      // };
-      const riskStore = {
-        longWeightInitial: ethers.utils.parseUnits("1", 9),
-        shortWeightInitial: ethers.utils.parseUnits("1", 9),
-        longWeightMaintenance: ethers.utils.parseUnits("1", 9),
-        shortWeightMaintenance: ethers.utils.parseUnits("1", 9),
-        priceX18: ethers.utils.parseUnits("1", 18)
-      };
-      
-      const tx = await perpEngine.addProduct(
-        PERP_USDC_TOKEN_ID,
-        orderBookAddress,
-        sizeIncrement,
-        minSize,
-        lpSpreadX18,
-        riskStore
-      )
-      console.log("Initialization transaction sent:", tx.hash);
-      const receipt = await tx.wait();
-      console.log(`PerpEngine adding product Id ${PERP_USDC_TOKEN_ID}  ...`, receipt.gasUsed)
+
+      for (const token of perpTokens) { 
+        try {
+          await perpOracle.setCustomPrice(token.id, initialPrice);
+          console.log(`Oracle: Set custom price for ${token.name}`);
+        } catch (error) {
+          console.error(`Oracle: Failed to set price for ${token.name}:`, error);
+        }
+        try {
+          await perpEngine.addProduct(token.id, orderBookAddress, sizeIncrement, minSize, lpSpreadX18, token.risk);
+          console.log(`Added product ${token.name} to PerpEngine`);
+        } catch (error) {
+          console.error(`Failed to add product ${token.name}:`, error);
+        }
+        
+      }
+      console.log("All PerpTokens added to the PerpEngine contract");
     } else {
-      console.log(`Please initialize the PerpEngine ContractPerpEngine`)
+      console.log(`Please initialize the PerpEngine Contract`)
     }
   } catch (error) {
     console.error("Initialization failed:", error);

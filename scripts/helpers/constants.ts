@@ -42,8 +42,16 @@ export const TOKENS = {
     risk: RISK_STORE.low, 
     addressKey: "quoteToken"
   },
+  // SPOT_VRTX: { 
+  //   id: 1,  // zero address
+  //   symbol: 'VRTX', 
+  //   name: config.isLocal ? 'VRTX_HARDHAT' : 'VRTX_HARMONY', 
+  //   type: ENGINE_TYPE.SPOT, 
+  //   risk: RISK_STORE.high, 
+  //   addressKey: "vertexToken"
+  // },
   SPOT_VRTX: { 
-    id: 1,  
+    id: 11,
     symbol: 'VRTX', 
     name: config.isLocal ? 'VRTX_HARDHAT' : 'VRTX_HARMONY', 
     type: ENGINE_TYPE.SPOT, 

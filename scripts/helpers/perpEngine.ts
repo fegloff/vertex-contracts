@@ -6,6 +6,7 @@ import {
   ENGINE_TYPE, 
   TOKENS 
 } from './constants';
+import { config } from '../../config'
 
 
 export async function addPerpProducts() {
@@ -30,13 +31,15 @@ export async function addPerpProducts() {
       const sizeIncrement = ethers.utils.parseUnits("0.1", 18); // Adjust as needed
       const minSize = ethers.utils.parseUnits("1", 18); // Adjust as needed
       const lpSpreadX18 = ethers.utils.parseUnits("0.001", 18); // 0.1% spread
-
+      const useChainlink = false; // config.isHarmony; 
       for (const token of perpTokens) { 
-        try {
-          await perpOracle.setCustomPrice(token.id, initialPrice);
-          console.log(`Oracle: Set custom price for ${token.name}`);
-        } catch (error) {
-          console.error(`Oracle: Failed to set price for ${token.name}:`, error);
+        if (!useChainlink) {
+          try {
+            await perpOracle.setCustomPrice(token.id, initialPrice);
+            console.log(`Oracle: Set custom price for ${token.name}`);
+          } catch (error) {
+            console.error(`Oracle: Failed to set price for ${token.name}:`, error);
+          }
         }
         try {
           await perpEngine.addProduct(token.id, orderBookAddress, sizeIncrement, minSize, lpSpreadX18, token.risk);

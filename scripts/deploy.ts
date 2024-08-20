@@ -2,7 +2,6 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 import * as path from "path";
 import * as hre from "hardhat";
-import { ethers } from "ethers";
 import { deployContractsInDir,
   deployContractWithParams,
   deployContractWithProxy,
@@ -45,32 +44,16 @@ async function mocksDeploy() {
   }
 }
 
-async function perpetualDeploy() {
+async function oracleDeploy() {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy, get } = hre.deployments;
   
   console.log("Deploying contracts with the account:", deployer);
   
-  const useChainlink = config.isHarmony; 
+  const useChainlink = false; // config.isHarmony; 
 
-  const oracleAddress = await deployContractWithParams("PerpOracle", deploy, get, deployer, useChainlink);
-  
-  if (oracleAddress) {    
-    const perpEngine = await get("PerpEngine")
-    const perpEngineAddress = perpEngine.address;
-    const productId = TOKENS.PERP_WBTC.id;
-    const priceFeedIdentifier = ethers.utils.formatBytes32String("USDC/USD");
-    await deployContractWithParams(
-      "Perpetual", 
-      deploy, 
-      get, 
-      deployer, 
-      productId,
-      priceFeedIdentifier,
-      perpEngineAddress,
-      oracleAddress
-    );
-  }
+  await deployContractWithParams("PerpOracle", deploy, get, deployer, useChainlink);
+
 }
 
 
@@ -78,7 +61,7 @@ async function main() {
   await deployContracts(hre)
   await mocksDeploy();
   await deployContractWithProxy('VertexToken', [], false)
-  await perpetualDeploy()
+  await oracleDeploy();
 }
 
 main()

@@ -40,15 +40,6 @@ export async function createPerpContracts() {
       await txOrderBook.wait();
       console.log(`Order Book market ${token.symbol} added`);
     }
-    
-//     await perpEngine.addProduct(/* ... */);
-
-// // Add to OrderBook
-// const orderBookAddress = "0x..."; // Order book contract address
-// const orderBook = await ethers.getContractAt("IOrderBook", orderBookAddress, signer);
-
-// await orderBook.addMarket(productId, perpetualContractAddress, 
-
   } catch (error) {
     console.error("Initialization failed:", error);
     if (error.transaction) {

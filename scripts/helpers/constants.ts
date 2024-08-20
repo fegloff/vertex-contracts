@@ -58,6 +58,14 @@ export const TOKENS = {
     risk: RISK_STORE.medium, 
     addressKey: "wbtcToken"
   },
+  SPOT_ETH: { 
+    id: 5,  
+    symbol: 'ETH', 
+    name: config.isLocal ? 'ETH_HARDHAT' : 'ETH_HARMONY', 
+    type: ENGINE_TYPE.SPOT, 
+    risk: RISK_STORE.low, 
+    addressKey: "ethToken"
+  },
   SPOT_USTD: { 
     id: 7,  
     symbol: 'USDT', 

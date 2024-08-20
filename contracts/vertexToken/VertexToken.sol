@@ -19,11 +19,11 @@ contract VertexToken is Initializable, ERC20Upgradeable, OwnableUpgradeable {
     }
 
     function initialize(address _sanctions) public initializer {
-        __ERC20_init("Vertex", "VRTX");
+        __ERC20_init("Vertex Test Token", "VRTX");
         __Ownable_init();
         sanctions = _sanctions;
 
-        _mint(msg.sender, 1000000000 * 10 ** decimals());
+        _mint(msg.sender, 10000 * 10 ** decimals());
     }
 
     function _beforeTokenTransfer(

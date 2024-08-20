@@ -340,14 +340,14 @@ export async function getContractsAddress() {
     woneTokenAddress = "0x0000000000000000000000000000000000000000";
   } else {
     quoteTokenAddress = "0xBC594CABd205bD993e7FfA6F3e9ceA75c1110da5";
-    vertexTokenAddress = "0x0000000000000000000000000000000000000000";
+    vertexTokenAddress = "0x0cABB7A3cB34434b3c6829BCb6B35597069D6411";
     wbtcTokenAddress = "0x118f50d23810c5E09Ebffb42d7D3328dbF75C2c2";
     ethTokenAddress = "0x4cC435d7b9557d54d6EF02d69Bbf72634905Bf11";
     woneTokenAddress = "0xcF664087a5bB0237a0BAd6742852ec6c8d69A27";
     usdtTokenAddress = "0xF2732e8048f1a411C63e2df51d08f4f52E598005";
   }
   return {
-    eRC20Helper: eRC20HelperAddress, // 0xf98A133d48365B9e20fdf2876714C49F56bf911f
+    // eRC20Helper: eRC20HelperAddress, // 0xf98A133d48365B9e20fdf2876714C49F56bf911f
     logger: loggerAddress, // 0x70802DB1d4b25eb8019867Df7b9d8D5e2794B4db
     mathHelper: mathHelperAddress, // 0x518136cB5f40F092916c7759aef6Bf265eB5fEbF
     mathSD21x18: mathSD21x18Address, // 0x7BA0271D916a7954773A1e4F3Eea4e39c7da4A81

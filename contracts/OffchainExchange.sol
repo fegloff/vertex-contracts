@@ -39,6 +39,8 @@ contract OffchainExchange is
     mapping(address => bool) internal addressTouched;
     address[] internal customFeeAddresses;
 
+    event MatchAttempt(int128 impliedPriceX18, int128 orderPriceX18, int128 baseDelta, int128 quoteDelta);
+
     function getAllFeeRates(address[] memory users, uint32[] memory productIds)
         external
         view
@@ -411,6 +413,9 @@ contract OffchainExchange is
     ) internal returns (int128, int128) {
         // 1. assert that the price is better than the limit price
         int128 impliedPriceX18 = quoteDelta.div(baseDelta).abs();
+        
+        emit MatchAttempt(impliedPriceX18, taker.order.priceX18, baseDelta, quoteDelta);
+
         if (taker.order.amount > 0) {
             // if buying, the implied price must be lower than the limit price
             require(

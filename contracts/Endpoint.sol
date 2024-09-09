@@ -67,6 +67,11 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
     mapping(uint32 => int128) internal priceX18;
     address internal offchainExchange;
 
+    event SubaccountRecordAttempt(bytes32 subaccount, uint64 currentId);
+    event SubaccountRecorded(bytes32 subaccount, uint64 newId);
+    event DepositCollateralCalled(bytes32 subaccount, uint32 productId, uint128 amount);
+
+
     string internal constant LIQUIDATE_SUBACCOUNT_SIGNATURE =
         "LiquidateSubaccount(bytes32 sender,bytes32 liquidatee,uint32 productId,bool isEncodedSpread,int128 amount,uint64 nonce)";
     string internal constant TRANSFER_QUOTE_SIGNATURE =
@@ -133,9 +138,11 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
     // or do an AMM swap that passes health checks without going through a deposit, so
     // we block those functions unless there has been a deposit first
     function _recordSubaccount(bytes32 subaccount) internal {
+        emit SubaccountRecordAttempt(subaccount, subaccountIds[subaccount]);
         if (subaccountIds[subaccount] == 0) {
             subaccountIds[subaccount] = ++numSubaccounts;
             subaccounts[numSubaccounts] = subaccount;
+            emit SubaccountRecorded(subaccount, numSubaccounts);
         }
     }
 
@@ -277,6 +284,7 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         uint128 amount,
         string memory referralCode
     ) public {
+        emit DepositCollateralCalled(subaccount, productId, amount);
         require(bytes(referralCode).length != 0, ERR_INVALID_REFERRAL_CODE);
 
         address sender = address(bytes20(subaccount));
@@ -413,6 +421,12 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
     function executeSlowModeTransaction() external {
         SlowModeConfig memory _slowModeConfig = slowModeConfig;
         _executeSlowModeTransaction(_slowModeConfig, false);
+        slowModeConfig = _slowModeConfig;
+    }
+
+    function executeSlowModeTransactionImmediately() external {
+        SlowModeConfig memory _slowModeConfig = slowModeConfig;
+        _executeSlowModeTransaction(_slowModeConfig, true);
         slowModeConfig = _slowModeConfig;
     }
 
@@ -799,12 +813,19 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         require(_priceX18 != 0, ERR_INVALID_PRODUCT);
     }
 
+    // function getTime() external view returns (uint128) {
+    //     Times memory t = times;
+    //     uint128 _time = t.spotTime > t.perpTime ? t.spotTime : t.perpTime;
+    //     require(_time != 0, ERR_INVALID_TIME);
+    //     return _time;
+    // }
+    
     function getTime() external view returns (uint128) {
         Times memory t = times;
         uint128 _time = t.spotTime > t.perpTime ? t.spotTime : t.perpTime;
-        require(_time != 0, ERR_INVALID_TIME);
-        return _time;
+        return _time;  // Return 0 if time hasn't been initialized yet, instead of reverting
     }
+
 
     function getOffchainExchange() external view returns (address) {
         return offchainExchange;

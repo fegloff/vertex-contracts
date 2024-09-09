@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockQuoteToken is ERC20 {
-    uint256 private constant INITIAL_SUPPLY = 100 ether;
     uint8 private _decimals;
 
     constructor(
@@ -12,7 +11,6 @@ contract MockQuoteToken is ERC20 {
         string memory symbol_,
         uint8 decimals_
     ) ERC20(name_, symbol_) {
-        _mint(msg.sender, INITIAL_SUPPLY);
         _decimals = decimals_;
     }
 

@@ -4,21 +4,23 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
-    uint256 private constant INITIAL_SUPPLY = 100 ether;
-    uint8 private _decimals;
+    uint8 private immutable _decimals;
+    uint256 public constant MAX_MINT_AMOUNT = 100 ether;
 
     constructor(
         string memory name_,
         string memory symbol_,
-        uint8 decimals_
+        uint8 decimals_,
+        uint256 initialSupply_
     ) ERC20(name_, symbol_) {
-        _mint(msg.sender, INITIAL_SUPPLY);
+        require(initialSupply_ <= MAX_MINT_AMOUNT, "MockERC20: initial supply too large");
         _decimals = decimals_;
+        _mint(msg.sender, initialSupply_);
     }
 
     /// @dev Unpermissioned minting for testing
     function mint(address account, uint256 amount) external {
-        require(amount < 100 ether, "MockERC20: amount too large");
+        require(amount <= MAX_MINT_AMOUNT, "MockERC20: amount too large");
         _mint(account, amount);
     }
 

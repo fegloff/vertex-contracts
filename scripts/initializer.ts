@@ -4,7 +4,6 @@ import { Signer } from 'ethers';
 import { addEngine, EngineType } from './helpers/clearinghouse';
 import { addSpotProducts } from './helpers/spotEngine';
 import { addPerpProducts } from './helpers/perpEngine';
-import { createPerpContracts } from './helpers/perpetual';
 
 export async function offchainExchangeInitializer(signer: Signer) {
   try {
@@ -53,9 +52,16 @@ export async function endPointInitializer(signer: Signer) {
 
     if (!await endpoint.isInitialized()) {
       const initialPrices: string[] = [
-        ethers.utils.parseUnits("0.00075", 18).toString(),  // $0.00075 or 0.075 cents cents for Product ID 0
+        ethers.utils.parseUnits("0.00075", 18).toString(), // $0.00075 or 0.075 cents cents for Product ID 0
         ethers.utils.parseUnits("0.00080", 18).toString(), // $0.00080 or 0.080 cents for Product ID 1
-        ethers.utils.parseUnits("0.00001", 18).toString(),// $0.00001 or 0.001 cents cents for Product ID 2
+        ethers.utils.parseUnits("0.00001", 18).toString(), // $0.00001 or 0.001 cents cents for Product ID 2
+        ethers.utils.parseUnits("0.00075", 18).toString(), // $0.00075 or 0.075 cents cents for Product ID 3
+        ethers.utils.parseUnits("0.00080", 18).toString(), // $0.00080 or 0.080 cents for Product ID 4
+        ethers.utils.parseUnits("0.00001", 18).toString(), // $0.00001 or 0.001 cents cents for Product ID 5
+        ethers.utils.parseUnits("0.00075", 18).toString(), // $0.00075 or 0.075 cents cents for Product ID 6
+        ethers.utils.parseUnits("0.00080", 18).toString(), // $0.00080 or 0.080 cents for Product ID 7
+        ethers.utils.parseUnits("0.00001", 18).toString(), // $0.00001 or 0.001 cents cents for Product ID 8
+        ethers.utils.parseUnits("0.05", 18).toString(), // $0.05 or 5 cents cents for Product ID 9
       ];
       // Initialize Endpoint
       const tx = await endpoint.initialize(
@@ -121,9 +127,8 @@ async function verifierInitializer(signer: Signer) {
   try {
     let owner = ""
     let state = []
-
+    console.log('CONTRACT ', verifierAddress)
     const verifier = await ethers.getContractAt("Verifier", verifierAddress, signer)
-
     if (!await verifier.isInitialized()) {
       console.log("Checking owner...");
       owner = await verifier.owner();
@@ -293,7 +298,7 @@ async function main() {
     await vertexTokenInitializer(signer)
     await addSpotProducts()
     await addPerpProducts()
-    await createPerpContracts()
+    // // await createPerpContracts()
     
   } catch (e) {
     console.log(e)

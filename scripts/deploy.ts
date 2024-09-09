@@ -5,9 +5,12 @@ import * as hre from "hardhat";
 import { deployContractsInDir,
   deployContractWithParams,
   deployContractWithProxy,
+  getSigner,
   TOKENS,
 } from "./helpers/helper";
 import { config } from '../config'
+import { ENGINE_TYPE } from "./helpers/constants";
+import { SpotToken } from "./helpers/types";
 
 export const contractsDir = path.join(__dirname, "../contracts");
 
@@ -28,7 +31,17 @@ async function mocksDeploy() {
   const verifierContract = await get("Verifier")
   const verifierAddress = verifierContract.address; // '0xde04eE2172803813dDcAE6B0ABA66A7ecE2bD1F4';
  
-  await deployContractWithParams("MockSequencer", deploy, get, deployer, verifierAddress);
+  const endpointContract = await get("Endpoint");
+  const endpointAddress = endpointContract.address;
+
+  const offchainExchange = await get("OffchainExchange");
+  const offchainExchangeAddress = offchainExchange.address;
+
+  const clearingHouse = await get("Clearinghouse");
+  const clearingHouseAddress = clearingHouse.address;
+  
+
+  await deployContractWithParams("MockSequencer", deploy, get, deployer, endpointAddress, offchainExchangeAddress, clearingHouseAddress);
 
   const initialSanctionedAddresses: string[] = [];
 
@@ -37,10 +50,22 @@ async function mocksDeploy() {
   await deployContractWithParams('MockSanctions', deploy, get, deployer, initialSanctionedAddresses);
 
   if (!config.isHarmony) {
-    const tokenName0 = TOKENS.SPOT_QUOTE.name
-    const tokenName23 = TOKENS.SPOT_USTD.name//  SPOT_VRTX.name
-    await deployContractWithParams('MockQuoteToken', deploy, get, deployer, tokenName0, "USDC", 6);
-    await deployContractWithParams('MockUsdcToken', deploy, get, deployer, tokenName23, "USDC", 6); 
+    const spotTokens = Object.values(TOKENS).filter(t => t.type === ENGINE_TYPE.SPOT) as SpotToken[];
+    
+    for (const token of spotTokens) {
+      if (token.symbol === "VRTX") {
+        // Vertex token is deployed with Proxy
+        continue
+      }
+      const result = await deploy(token.symbol, {
+        from: deployer,
+        contract: "MockERC20",
+        args: [token.name, token.symbol, token.decimals, token.initialSupply],
+        log: true,
+      });
+      
+      console.log(`${token.symbol} deployed at: ${result.address}`);     
+    }
   }
 }
 
@@ -60,7 +85,9 @@ async function oracleDeploy() {
 async function main() {
   await deployContracts(hre)
   await mocksDeploy();
-  await deployContractWithProxy('VertexToken', [], false)
+  if (!config.isHarmony) { // already have the token deployed on Harmony's mainnet
+    await deployContractWithProxy('VertexToken', [], false)
+  }
   await oracleDeploy();
 }
 

@@ -12,6 +12,11 @@ export interface Point {
 }
 // export const isLocalDeployment = config.isLocalDeployment;
 
+export const CONTRACTS_SKIP_DEPLOY = [
+  'Perpetual', 
+  'OrderBook'
+]
+
 const zeroAddress = ethers.constants.AddressZero;
 
 export function isZeroAddress(address: string): boolean {
@@ -113,7 +118,9 @@ export const deployContractsInDir = async (
 
     if (entry.isFile() && entry.name.endsWith(".sol")) {
       const contractName = path.parse(entry.name).name;
-
+      if (CONTRACTS_SKIP_DEPLOY.includes(contractName)) {
+        continue
+      }
       try {
 
         const existingDeployment = await getFn(contractName).catch(() => undefined);
@@ -313,11 +320,8 @@ export async function getContractsAddress() {
   const perpOracleContract = await deployments.get("PerpOracle");
   const perpOracleAddress = perpOracleContract.address;
 
-  const perpetualContract = await deployments.get("Perpetual");
-  const perpetualAddress = perpetualContract.address;
-
-  const orderBookContract = await deployments.get("OrderBook");
-  const orderBookAddress = orderBookContract.address;
+  const orderBookFactoryContract = await deployments.get("OrderBookFactory");
+  const orderBookFactoryAddress = orderBookFactoryContract.address;
 
   const perpetualFactoryContract = await deployments.get("PerpetualFactory");
   const perpetualFactoryAddress = perpetualFactoryContract.address;
@@ -329,21 +333,24 @@ export async function getContractsAddress() {
     woneTokenAddress: string,
     usdtTokenAddress: string;
   if (!config.isHarmony) {
-    const quoteToken = await deployments.get('MockQuoteToken')
+    const quoteToken = await deployments.get('USDC')
     quoteTokenAddress = quoteToken.address
     const vertexTokenContract = await deployments.get("VertexToken");
     vertexTokenAddress = vertexTokenContract.address;
-    const usdtToken = await deployments.get('MockUsdcToken')
+    const usdtToken = await deployments.get('USDT')
     usdtTokenAddress = usdtToken.address
-    wbtcTokenAddress = "0x0000000000000000000000000000000000000000";
-    ethTokenAddress = "0x0000000000000000000000000000000000000000";
-    woneTokenAddress = "0x0000000000000000000000000000000000000000";
+    const wbtcToken = await deployments.get('WBTC')
+    wbtcTokenAddress = wbtcToken.address
+    const ethToken = await deployments.get('ETH')
+    ethTokenAddress = ethToken.address
+    const woneToken = await deployments.get('WONE')
+    woneTokenAddress = woneToken.address
   } else {
     quoteTokenAddress = "0xBC594CABd205bD993e7FfA6F3e9ceA75c1110da5";
     vertexTokenAddress = "0x0cABB7A3cB34434b3c6829BCb6B35597069D6411";
     wbtcTokenAddress = "0x118f50d23810c5E09Ebffb42d7D3328dbF75C2c2";
     ethTokenAddress = "0x4cC435d7b9557d54d6EF02d69Bbf72634905Bf11";
-    woneTokenAddress = "0xcF664087a5bB0237a0BAd6742852ec6c8d69A27";
+    woneTokenAddress = "0xcf664087a5bb0237a0bad6742852ec6c8d69a27a"; // "0xcF664087a5bB0237a0BAd6742852ec6c8d69A27A";
     usdtTokenAddress = "0xF2732e8048f1a411C63e2df51d08f4f52E598005";
   }
   return {
@@ -365,9 +372,8 @@ export async function getContractsAddress() {
     sequencer: sequencerAddress, // 0xD3E86D822911bFB87eAcCa74fFC6658968BAe86E
     sanctions: sanctionsAddress, // 0xD571511D563265e03FfEBa875274bDd71E3E3d80
     perpOracle: perpOracleAddress,
-    perpetual: perpetualAddress,
-    orderBook: orderBookAddress,
     perpetualFactory: perpetualFactoryAddress,
+    orderBookFactory: orderBookFactoryAddress,
     quoteToken: quoteTokenAddress,
     wbtcToken: wbtcTokenAddress,
     vertexToken: vertexTokenAddress,

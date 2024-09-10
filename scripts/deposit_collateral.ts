@@ -27,6 +27,14 @@ async function test() {
       ethers.getContractAt("OffchainExchange", offchainExchangeAddress, signer)
     ]);
 
+    cleanup = setupEventListeners([
+      { name: 'endpoint', contract: endpoint },
+      { name: 'sequencer', contract: sequencer },
+      { name: 'offchainExchange', contract: offchainExchange },
+      { name: 'clearinghouse', contract: clearinghouse },
+      { name: 'spotEngine', contract: spotEngine }
+    ]);
+    
     let lastUpdateTime;
     try {
       lastUpdateTime = await endpoint.getTime();
@@ -44,12 +52,6 @@ async function test() {
     console.log('Time updated:', lastUpdateTime.toString());
 
     console.log("nSubmissions before:", await endpoint.nSubmissions());
- 
-    cleanup = setupEventListeners([
-      { name: 'sequencer', contract: sequencer},
-      { name: 'offchainExchange', contract: offchainExchange},
-      { name: 'endpoint', contract: endpoint}, 
-    ]);
 
     const subaccountBytes32 = ethers.utils.hexZeroPad(await signer.getAddress(), 32);
     const productId = 9;
@@ -71,7 +73,13 @@ async function test() {
     
     await logSlowModeInfo(endpoint);
 
-    // await new Promise(resolve => setTimeout(resolve, 3000));
+    sequencer.on("DetailedError", (functionName, errorData) => {
+      console.log(`Detailed error in ${functionName}:`, errorData);
+    });
+  
+    sequencer.on("ErrorOccurred", (functionName, errorMessage) => {
+        console.log(`Error in ${functionName}:`, errorMessage);
+    });
 
     await executeTransaction(sequencer, endpoint, clearinghouse, spotEngine, TransactionType.ExecuteSlowMode, { subaccountBytes32, productId });
     // Check subaccount registration and balance after deposit
@@ -86,7 +94,7 @@ async function test() {
     const balanceAfterDeposit = await spotEngine.getBalance(productId, subaccountBytes32);
     console.log("Balance after deposit:", balanceAfterDeposit.toString());
 
-    await submitMatchOrderAMMTransaction(endpoint, spotEngine, subaccountBytes32, productId, signer);
+    await submitMatchOrderAMMTransaction(endpoint, sequencer, spotEngine, subaccountBytes32, productId, signer);
 
     console.log('After calling submitMatchOrderAMMTransaction');
     
@@ -99,7 +107,7 @@ async function test() {
     console.error("Error in test function:", error);
   } finally {
     console.log("Waiting for events...");
-    await new Promise(resolve => setTimeout(resolve, 5000));  // Wait for 5 seconds
+    await new Promise(resolve => setTimeout(resolve, 10000));  
     if (cleanup) {
       cleanup();
     }
@@ -119,7 +127,7 @@ async function logSlowModeInfo(endpoint: Contract) {
   }
 }
 
-async function submitMatchOrderAMMTransaction(endpoint, spotEngine, subaccountBytes32, productId, signer) {
+async function submitMatchOrderAMMTransaction(endpoint, sequencer, spotEngine, subaccountBytes32, productId, signer) {
   try {
     const latestBlock = await ethers.provider.getBlock('latest');
     const currentTimestamp = latestBlock.timestamp;
@@ -142,7 +150,7 @@ async function submitMatchOrderAMMTransaction(endpoint, spotEngine, subaccountBy
           ["tuple(uint128,int128[])"],
           [[
             currentTimestamp,
-            [ethers.utils.parseUnits("0.5", 18)] // Example utilization ratio, adjust as needed
+            [ethers.utils.parseUnits("0.5", 18)]
           ]]
         )
       ]
@@ -193,8 +201,7 @@ async function submitMatchOrderAMMTransaction(endpoint, spotEngine, subaccountBy
     console.log("Nonce:", nonce.toString());
     console.log("Subaccount:", subaccountBytes32);
 
-  
-    const transactions = [matchOrderAMMTransaction]; // [spotTickTransaction, matchOrderAMMTransaction];
+    const transactions = [spotTickTransaction, matchOrderAMMTransaction];
     const idx = await endpoint.nSubmissions();
     const gasLimit = 10000000;
 
@@ -205,7 +212,7 @@ async function submitMatchOrderAMMTransaction(endpoint, spotEngine, subaccountBy
     const balanceBeforeTx = await spotEngine.getBalance(productId, subaccountBytes32);
     console.log("Balance before transaction:", balanceBeforeTx.toString());
 
-    const tx = await endpoint.submitTransactionsCheckedWithGasLimit( 
+    const tx = await sequencer.submitTransactionsCheckedWithGasLimit( 
       idx,
       transactions,
       gasLimit,
@@ -221,32 +228,28 @@ async function submitMatchOrderAMMTransaction(endpoint, spotEngine, subaccountBy
 
   } catch (error) {
     console.error("Error submitting MatchOrderAMM transaction:", error);
-    // Log more details about the error
     if (error.reason) console.error("Error reason:", error.reason);
     if (error.code) console.error("Error code:", error.code);
     if (error.data) console.error("Error data:", error.data);
+    if (error.transaction) console.error("Error transaction:", error.transaction);
+    if (error.receipt) console.error("Error receipt:", error.receipt);
   }
 }
 
 function setupEventListeners(contracts: { name: string; contract: Contract }[]) {
-  
   const cleanupFunctions: (() => void)[] = [];
 
   contracts.forEach(({ name, contract }) => {
+    // const events = contract.interface.events;
     console.log(`Setting up listeners for ${name}...`);
-
-    const events = Object.keys(contract.filters).filter(key => typeof contract.filters[key] === 'function');
-    console.log(`Found ${events.length} events for ${name}: ${events.join(", ")}`);
-    
-    events.forEach(eventName => {
-      console.log(`Setting up listener for ${name}.${eventName}`);
-      const listener = (...args: any[]) => {
-        console.log(`:::::::::::${name}.${eventName} emitted:`, ...args.map(arg => arg.toString()));
-      };
-      contract.on(contract.filters[eventName](), listener);
-      cleanupFunctions.push(() => contract.off(contract.filters[eventName](), listener));
+    contract.on('*', (event) => {
+      console.log(`:::::::::::${name}.${event.event} emitted:`, ...event.args.slice(0, -1));
     });
+
+    cleanupFunctions.push(() => contract.removeAllListeners());
+  
   });
+
   console.log("Event listeners setup complete.");
 
   return () => {
@@ -344,7 +347,7 @@ async function executeTransaction(
         // If txData.type is not provided, just encode the txType
         encodedTx = ethers.utils.defaultAbiCoder.encode(['uint8'], [txType]);
     }
-    console.log('HERE BEFORE THE CALL')
+
     tx = await sequencer.submitTransactionsCheckedWithGasLimit(
         await sequencer.nSubmissions(),
         [encodedTx],

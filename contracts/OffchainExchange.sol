@@ -40,6 +40,7 @@ contract OffchainExchange is
     address[] internal customFeeAddresses;
 
     event MatchAttempt(int128 impliedPriceX18, int128 orderPriceX18, int128 baseDelta, int128 quoteDelta);
+    event DebugLog(string message);
 
     function getAllFeeRates(address[] memory users, uint32[] memory productIds)
         external
@@ -418,11 +419,13 @@ contract OffchainExchange is
 
         if (taker.order.amount > 0) {
             // if buying, the implied price must be lower than the limit price
+            emit DebugLog("impliedPriceX18 <= taker.order.priceX18");
             require(
                 impliedPriceX18 <= taker.order.priceX18,
                 ERR_ORDERS_CANNOT_BE_MATCHED
             );
 
+            emit DebugLog("baseDelta < 0 && taker.order.amount >= -baseDelta");
             // AMM must be selling
             // magnitude of what AMM is selling must be less than or equal to what the taker is buying
             require(
@@ -431,12 +434,14 @@ contract OffchainExchange is
             );
         } else {
             // if selling, the implied price must be higher than the limit price
+            emit DebugLog("impliedPriceX18 >= taker.order.priceX18");
             require(
                 impliedPriceX18 >= taker.order.priceX18,
                 ERR_ORDERS_CANNOT_BE_MATCHED
             );
             // AMM must be buying
             // magnitude of what AMM is buying must be less than or equal to what the taker is selling
+            emit DebugLog("baseDelta > 0 && taker.order.amount <= -baseDelta");
             require(
                 baseDelta > 0 && taker.order.amount <= -baseDelta,
                 ERR_ORDERS_CANNOT_BE_MATCHED
@@ -639,18 +644,20 @@ contract OffchainExchange is
                 ),
                 ERR_INVALID_MAKER
             );
-
+            emit DebugLog("maker.order.amount > 0) != (taker.order.amount > 0");
             // ensure orders are crossing
             require(
                 (maker.order.amount > 0) != (taker.order.amount > 0),
                 ERR_ORDERS_CANNOT_BE_MATCHED
             );
             if (maker.order.amount > 0) {
+                emit DebugLog("maker.order.priceX18 >= taker.order.priceX18");
                 require(
                     maker.order.priceX18 >= taker.order.priceX18,
                     ERR_ORDERS_CANNOT_BE_MATCHED
                 );
             } else {
+                emit DebugLog("maker.order.priceX18 <= taker.order.priceX18");
                 require(
                     maker.order.priceX18 <= taker.order.priceX18,
                     ERR_ORDERS_CANNOT_BE_MATCHED

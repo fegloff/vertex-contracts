@@ -71,7 +71,6 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
     event SubaccountRecorded(bytes32 subaccount, uint64 newId);
     event DepositCollateralCalled(bytes32 subaccount, uint32 productId, uint128 amount);
 
-
     string internal constant LIQUIDATE_SUBACCOUNT_SIGNATURE =
         "LiquidateSubaccount(bytes32 sender,bytes32 liquidatee,uint32 productId,bool isEncodedSpread,int128 amount,uint64 nonce)";
     string internal constant TRANSFER_QUOTE_SIGNATURE =

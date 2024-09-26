@@ -5,11 +5,9 @@ import * as hre from "hardhat";
 import { deployContractsInDir,
   deployContractWithParams,
   deployContractWithProxy,
-  getSigner,
-  TOKENS,
 } from "./helpers/helper";
 import { config } from '../config'
-import { ENGINE_TYPE } from "./helpers/constants";
+import { ENGINE_TYPE, TOKENS } from "./helpers/constants";
 import { SpotToken } from "./helpers/types";
 
 export const contractsDir = path.join(__dirname, "../contracts");
@@ -50,7 +48,7 @@ async function mocksDeploy() {
   await deployContractWithParams('MockSanctions', deploy, get, deployer, initialSanctionedAddresses);
 
   if (!config.isHarmony) {
-    const spotTokens = Object.values(TOKENS).filter(t => t.type === ENGINE_TYPE.SPOT) as SpotToken[];
+    const spotTokens = Object.values(TOKENS).filter((t: SpotToken) => t.type === ENGINE_TYPE.SPOT) as SpotToken[];
     
     for (const token of spotTokens) {
       if (token.symbol === "VRTX") {

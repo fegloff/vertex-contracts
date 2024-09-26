@@ -1,7 +1,6 @@
 import { ethers } from "hardhat";
-import { getContractsAddress, getSigner, TOKENS } from "./helpers/helper";
+import { getContractsAddress, getSigner, logSlowModeInfo, setupEventListeners } from "./helpers/helper";
 import { SECONDS_PER_DAY, TransactionType } from "./helpers/constants";
-import { config } from '../config'
 import { Contract, Signer } from "ethers";
 import { Balance } from "./helpers/types";
 
@@ -107,7 +106,7 @@ async function test() {
     console.error("Error in test function:", error);
   } finally {
     console.log("Waiting for events...");
-    await new Promise(resolve => setTimeout(resolve, 10000));  
+    await new Promise(resolve => setTimeout(resolve, 20000));  
     if (cleanup) {
       cleanup();
     }
@@ -115,32 +114,78 @@ async function test() {
   }
 }
 
-async function logSlowModeInfo(endpoint: Contract) {
-  try {
-    const [slowModeTx, txUpTo, txCount] = await endpoint.getSlowModeTx(0);
-    console.log("Slow mode info:");
-    console.log("  First transaction:", slowModeTx);
-    console.log("  Transactions processed:", txUpTo.toString());
-    console.log("  Total transactions:", txCount.toString());
-  } catch (error) {
-    console.error("Error fetching slow mode info:", error);
-  }
+async function createSwapAMMTransaction(subaccountBytes32, productId, amount) {
+  const swapAMMTransaction = ethers.utils.solidityPack(
+    ["uint8", "bytes"],
+    [
+      TransactionType.SwapAMM,
+      ethers.utils.defaultAbiCoder.encode(
+        ["tuple(bytes32,uint32,int128,int128,int128,bytes)"],
+        [[
+          subaccountBytes32,
+          productId,
+          amount,
+          0, // baseDelta (can be 0 for now)
+          0, // quoteDelta (can be 0 for now)
+          "0x" // referralCode (empty for now)
+        ]]
+      )
+    ]
+  );
+
+  return swapAMMTransaction;
 }
+
+async function createMatchOrderAMMTransaction(endpoint: Contract, signer: Signer, subaccountBytes32, productId, amount, currentTimestamp) {
+  // Set expiration to 1 hour from now
+  const expirationTime = currentTimestamp + 3600;
+  console.log("Expiration time:", expirationTime);
+
+  // Create SpotTick transaction
+  const lastUpdateTime = await endpoint.getTime();
+  const dt = Math.min(currentTimestamp - lastUpdateTime, 6 * SECONDS_PER_DAY); // Cap at 6 days to be safe
+  console.log("Time delta (dt):", dt);
+
+  const currentPrice = await endpoint.getPriceX18(productId);
+  console.log("Current price:", currentPrice.toString(), await signer.getAddress());
+
+  const nonce = await endpoint.getNonce(await signer.getAddress());
+  console.log("Current nonce:", nonce.toString());
+
+  const matchOrderAMMTransaction = ethers.utils.solidityPack(
+    ["uint8", "bytes"],
+    [
+      TransactionType.MatchOrderAMM,
+      ethers.utils.defaultAbiCoder.encode(
+        ["tuple(uint32,int128,int128,tuple(tuple(bytes32,int128,int128,uint64,uint64),bytes))"],
+        [[
+          productId,
+          amount,
+          0, // quoteDelta
+          [
+            [
+              subaccountBytes32,
+              currentPrice,
+              amount,
+              expirationTime, 
+              nonce
+            ],
+            await signer.getAddress()
+          ]
+        ]]
+      )
+    ]
+  );
+
+  return matchOrderAMMTransaction;
+}
+
 
 async function submitMatchOrderAMMTransaction(endpoint, sequencer, spotEngine, subaccountBytes32, productId, signer) {
   try {
     const latestBlock = await ethers.provider.getBlock('latest');
     const currentTimestamp = latestBlock.timestamp;
     console.log("Current timestamp:", currentTimestamp);
-
-    // Set expiration to 1 hour from now
-    const expirationTime = currentTimestamp + 3600;
-    console.log("Expiration time:", expirationTime);
-
-    // Create SpotTick transaction
-    const lastUpdateTime = await endpoint.getTime();
-    const dt = Math.min(currentTimestamp - lastUpdateTime, 6 * SECONDS_PER_DAY); // Cap at 6 days to be safe
-    console.log("Time delta (dt):", dt);
 
     const spotTickTransaction = ethers.utils.solidityPack(
       ["uint8", "bytes"],
@@ -161,47 +206,18 @@ async function submitMatchOrderAMMTransaction(endpoint, sequencer, spotEngine, s
 
     const amount = balance.amount.div(10);
     console.log("Order amount:", amount.toString());
-        
-    const nonce = await endpoint.getNonce(await signer.getAddress());
-    console.log("Current nonce:", nonce.toString());
+  
 
-    const currentPrice = await endpoint.getPriceX18(productId);
-    console.log("Current price:", currentPrice.toString(), await signer.getAddress());
+    console.log('Creating SwapAMM transaction');
+    const swapAMMTransaction = await createSwapAMMTransaction(subaccountBytes32, productId, amount);
 
-    const matchOrderAMMTransaction = ethers.utils.solidityPack(
-      ["uint8", "bytes"],
-      [
-        TransactionType.MatchOrderAMM,
-        ethers.utils.defaultAbiCoder.encode(
-          ["tuple(uint32,int128,int128,tuple(tuple(bytes32,int128,int128,uint64,uint64),bytes))"],
-          [[
-            productId,
-            amount,
-            0, // quoteDelta
-            [
-              [
-                subaccountBytes32,
-                currentPrice,
-                amount,
-                expirationTime, 
-                nonce
-              ],
-              await signer.getAddress()
-            ]
-          ]]
-        )
-      ]
-    );
 
     console.log("MatchOrderAMM Transaction Details:");
     console.log("Product ID:", productId);
     console.log("Amount:", amount.toString());
-    console.log("Current Price:", currentPrice.toString());
-    console.log("Expiration Time:", expirationTime);
-    console.log("Nonce:", nonce.toString());
     console.log("Subaccount:", subaccountBytes32);
 
-    const transactions = [spotTickTransaction, matchOrderAMMTransaction];
+    const transactions = [swapAMMTransaction]; // spotTickTransaction, 
     const idx = await endpoint.nSubmissions();
     const gasLimit = 10000000;
 
@@ -212,7 +228,7 @@ async function submitMatchOrderAMMTransaction(endpoint, sequencer, spotEngine, s
     const balanceBeforeTx = await spotEngine.getBalance(productId, subaccountBytes32);
     console.log("Balance before transaction:", balanceBeforeTx.toString());
 
-    const tx = await sequencer.submitTransactionsCheckedWithGasLimit( 
+    const tx = await endpoint.submitTransactionsCheckedWithGasLimit( 
       idx,
       transactions,
       gasLimit,
@@ -227,35 +243,12 @@ async function submitMatchOrderAMMTransaction(endpoint, sequencer, spotEngine, s
     console.log("Balance after transaction:", balanceAfterTx.toString());
 
   } catch (error) {
-    console.error("Error submitting MatchOrderAMM transaction:", error);
-    if (error.reason) console.error("Error reason:", error.reason);
-    if (error.code) console.error("Error code:", error.code);
-    if (error.data) console.error("Error data:", error.data);
-    if (error.transaction) console.error("Error transaction:", error.transaction);
-    if (error.receipt) console.error("Error receipt:", error.receipt);
+    if (error.body) {
+      console.error("Error submitting MatchOrderAMM transaction:", error.body);
+    } else {
+      console.error("Error submitting MatchOrderAMM transaction:", error);
+    }
   }
-}
-
-function setupEventListeners(contracts: { name: string; contract: Contract }[]) {
-  const cleanupFunctions: (() => void)[] = [];
-
-  contracts.forEach(({ name, contract }) => {
-    // const events = contract.interface.events;
-    console.log(`Setting up listeners for ${name}...`);
-    contract.on('*', (event) => {
-      console.log(`:::::::::::${name}.${event.event} emitted:`, ...event.args.slice(0, -1));
-    });
-
-    cleanupFunctions.push(() => contract.removeAllListeners());
-  
-  });
-
-  console.log("Event listeners setup complete.");
-
-  return () => {
-    console.log("Cleaning up event listeners...");
-    cleanupFunctions.forEach(cleanup => cleanup());
-  };
 }
 
 async function logBalances(
@@ -442,3 +435,24 @@ main()
   //   };
   // }
   
+  // function setupEventListeners(contracts: { name: string; contract: Contract }[]) {
+//   const cleanupFunctions: (() => void)[] = [];
+
+//   contracts.forEach(({ name, contract }) => {
+//     // const events = contract.interface.events;
+//     console.log(`Setting up listeners for ${name}...`);
+//     contract.on('*', (event) => {
+//       console.log(`:::::::::::${name}.${event.event} emitted:`, ...event.args.slice(0, -1));
+//     });
+
+//     cleanupFunctions.push(() => contract.removeAllListeners());
+  
+//   });
+
+//   console.log("Event listeners setup complete.");
+
+//   return () => {
+//     console.log("Cleaning up event listeners...");
+//     cleanupFunctions.forEach(cleanup => cleanup());
+//   };
+// }

@@ -3,9 +3,10 @@ import * as path from "path";
 import * as fs from "fs";
 import * as hre from "hardhat";
 import { config } from '../../config';
-import { ethers as eths, Signer } from 'ethers';
+import { Contract, ethers as eths, Signer, utils, Event } from 'ethers';
 import { ABI } from 'hardhat-deploy/types';
 import { TOKENS } from './constants';
+import { EventArg } from './types';
 export interface Point {
   x: eths.BigNumber;
   y: eths.BigNumber;
@@ -383,40 +384,74 @@ export async function getContractsAddress() {
   };
 }
 
+export function setupEventListeners(contracts: { name: string; contract: Contract }[]) {
+  const cleanupFunctions: (() => void)[] = [];
 
+  contracts.forEach(({ name, contract }) => {
+    console.log(`Setting up listeners for ${name}...`);
 
+    const eventNames = Object.keys(contract.interface.events);
+    console.log(`Available events for ${name}: ${eventNames.join(', ')}`);
 
+    eventNames.forEach(eventName => {
+      console.log(`Setting up listener for ${name}.${eventName}`);
 
-export { TOKENS };
-// export const getTokenName = (id: number) => {
-//   switch (id) {
-//     case 0: 
-//       return !isLocalDeployment() ? 'USDC_HARMONY' : 'USDC_HARDHAT'
-//     case 1: 
-//       return !isLocalDeployment() ? 'VRTX_HARMONY' : 'VRTX_HARDHAT'
-//     case 3: 
-//       return !isLocalDeployment() ? 'WBTC_HARMONY' : 'WBTC_HARDHAT'
-//     case 2:
-//       return 'PERP_WBTC';
-//     case 4:
-//       return 'PERP_ETH';
-//     }
-// }
+      try {
+        contract.on(eventName, (...args: any[]) => {
+          const event = args[args.length - 1] as Event;
+          const eventFragment = contract.interface.getEvent(eventName);
 
-// const getTokenName = (id: number) => {
-//   const token = [...SPOT_TOKENS, ...PERP_TOKENS].find(t => t.id === id);
-//   if (!token) return null;
+          const formattedArgs = eventFragment.inputs.reduce<EventArg>((acc, input, index) => {
+            if (input.indexed) {
+              if (input.type === 'string') {
+                try {
+                  acc[input.name] = utils.parseBytes32String(args[index]);
+                } catch {
+                  acc[input.name] = args[index]; // Fallback if not bytes32 encoded
+                }
+              } else if (input.type === 'address') {
+                acc[input.name] = utils.getAddress(args[index]);
+              } else {
+                acc[input.name] = args[index];
+              }
+            } else {
+              acc[input.name] = args[index];
+            }
+            return acc;
+          }, {});
 
-//   const prefix = PERP_TOKENS.some(t => t.id === id) ? 'PERP_' : '';
-//   const suffix = !isLocalDeployment() ? '_HARMONY' : '_HARDHAT';
+          console.log(`${name}.${eventName} emitted:`);
+          console.log(JSON.stringify(formattedArgs, null, 2));
+          console.log(`Block Number: ${event.blockNumber}`);
+          console.log(`Transaction Hash: ${event.transactionHash}`);
+          console.log('---');
+        });
 
-//   return `${prefix}${token.name}${suffix}`;
-// };
+        console.log(`Listener set up successfully for ${name}.${eventName}`);
+      } catch (error) {
+        console.error(`Error setting up listener for ${name}.${eventName}:`, error);
+      }
+    });
 
+    cleanupFunctions.push(() => contract.removeAllListeners());
+  });
 
-// export const SPOT_QUOTE_TOKEN_ID = 0
-// export const SPOT_VRTX_TOKEN_ID = 1
-// export const SPOT_WBTC_TOKEN_ID = 3
+  console.log("Event listeners setup complete.");
 
-// export const PERP_WBTC_TOKEN_ID = 2
-// export const PERP_ETH_TOKEN_ID = 4
+  return () => {
+    console.log("Cleaning up event listeners...");
+    cleanupFunctions.forEach(cleanup => cleanup());
+  };
+}
+
+export async function logSlowModeInfo(endpoint: Contract) {
+  try {
+    const [slowModeTx, txUpTo, txCount] = await endpoint.getSlowModeTx(0);
+    console.log("Slow mode info:");
+    console.log("  First transaction:", slowModeTx);
+    console.log("  Transactions processed:", txUpTo.toString());
+    console.log("  Total transactions:", txCount.toString());
+  } catch (error) {
+    console.error("Error fetching slow mode info:", error);
+  }
+}

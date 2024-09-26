@@ -14,9 +14,9 @@ contract MockSequencer {
     event TransactionProcessed(uint8 txType, bytes txData);
     event LogTransactionDetails(uint8 txType, uint256 transactionLength);
     event MockMatchAttempt(uint32 productId, int128 takerAmount, int128 baseDelta, int128 quoteDelta, int128 takerPriceX18);
-    event ErrorOccurred(string functionName, string errorMessage);
-    event DebugLog(string message, bytes data);
-    event DetailedError(string functionName, bytes errorData);
+    event ErrorOccurred(string indexed topic, string errorMessage);
+    event DebugLog(string indexed topic, string message, bytes data);
+    event DetailedError(string indexed topic, bytes errorData);
 
     constructor(address _endpoint, address _offchainExchange, address _clearinghouse) {
         endpoint = IEndpoint(_endpoint);
@@ -34,7 +34,7 @@ contract MockSequencer {
         uint256 initialGas = gasleft();
 
         for (uint256 i = 0; i < transactions.length; i++) {
-            emit DebugLog("Processing transaction", transactions[i]);
+            emit DebugLog("submitTransactionsCheckedWithGasLimit", "Processing transaction", transactions[i]);
             try this.processTransactionWithLogging(transactions[i]) {
                 // Transaction processed successfully
             } catch Error(string memory reason) {
@@ -163,8 +163,10 @@ contract MockSequencer {
             _processSubmitTransactionsCheckedWithGasLimit(transaction);
         } else if (txType == uint8(IEndpoint.TransactionType.PerpTick)) {
             _processSubmitTransactionsCheckedWithGasLimit(transaction);
+        } else if (txType == uint8(IEndpoint.TransactionType.SwapAMM)) {
+            _processSwapAMM(transaction);
         } else {
-            emit DebugLog("Unsupported transaction type", transaction);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+            emit DebugLog("processTransactionWithLogging", "Unsupported transaction type", transaction);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             revert(string(abi.encodePacked("Unsupported transaction type: ", uint8ToString(txType))));
         }
         emit TransactionProcessed(txType, transaction);
@@ -189,21 +191,36 @@ contract MockSequencer {
         return string(buffer);
     }
 
+    function _processSwapAMM(bytes calldata transaction) internal {
+        emit DebugLog("_processSwapAMM", "Processing SwapAMM", transaction);
+        (, IEndpoint.SwapAMM memory swapAMM) = abi.decode(transaction[1:], (uint8, IEndpoint.SwapAMM));
+        try offchainExchange.swapAMM(swapAMM) {
+            emit DebugLog("_processSwapAMM", "SwapAMM successful", "");
+        } catch Error(string memory reason) {
+            emit ErrorOccurred("_processSwapAMM", reason);
+            revert(reason);
+        } catch (bytes memory lowLevelData) {
+            emit ErrorOccurred("_processSwapAMM", "Low level error");
+            emit DebugLog("_processSwapAMM", "Low level error data _processSwapAMM", lowLevelData);
+            revert("Swap AMM failed with low level error");
+        }
+    }
+
     function _processExecuteSlowMode(bytes calldata transaction) internal {
-        emit DebugLog("Processing _processExecuteSlowMode", transaction); 
+        emit DebugLog("_processExecuteSlowMode", "Processing _processExecuteSlowMode", transaction); 
         try endpoint.executeSlowModeTransactionImmediately() {
         } catch Error(string memory reason) {
             emit ErrorOccurred("_processExecuteSlowMode", reason);
             revert(reason);
         } catch (bytes memory lowLevelData) {
             emit ErrorOccurred("_processExecuteSlowMode", "Low level error");
-            emit DebugLog("Low level error data _processSubmitTransactionsCheckedWithGasLimit", lowLevelData);
+            emit DebugLog("_processExecuteSlowMode", "Low level error data _processSubmitTransactionsCheckedWithGasLimit", lowLevelData);
             revert("Process Execute slow mode failed with low level error");
         }
     }
 
     function _processSubmitTransactionsCheckedWithGasLimit(bytes calldata transaction) internal {
-        emit DebugLog("Processing _processSubmitTransactionsCheckedWithGasLimit", transaction); 
+        emit DebugLog("_processSubmitTransactionsCheckedWithGasLimit", "Processing _processSubmitTransactionsCheckedWithGasLimit", transaction); 
         (uint64 idx, bytes[] memory transactions, uint256 gasLimit) = abi.decode(transaction[1:], (uint64, bytes[], uint256));
         try endpoint.submitTransactionsCheckedWithGasLimit(idx, transactions, gasLimit) {
         } catch Error(string memory reason) {
@@ -211,13 +228,13 @@ contract MockSequencer {
             revert(reason);
         } catch (bytes memory lowLevelData) {
             emit ErrorOccurred("_processSubmitTransactionsCheckedWithGasLimit", "Low level error");
-            emit DebugLog("Low level error data _processSubmitTransactionsCheckedWithGasLimit", lowLevelData);
+            emit DebugLog("_processSubmitTransactionsCheckedWithGasLimit", "Low level error data _processSubmitTransactionsCheckedWithGasLimit", lowLevelData);
             revert("Submit Transaction Checked with gas limite failed with low level error");
         }
     }
 
     function _processDepositCollateral(bytes calldata transaction) internal {
-        emit DebugLog("Processing DepositCollateral", transaction);
+        emit DebugLog("_processDepositCollateral", "Processing DepositCollateral", transaction);
         (, IEndpoint.DepositCollateral memory deposit) = abi.decode(transaction[1:], (uint8, IEndpoint.DepositCollateral));
         try endpoint.depositCollateralWithReferral(deposit.sender, deposit.productId, deposit.amount, "") {
         } catch Error(string memory reason) {
@@ -225,13 +242,13 @@ contract MockSequencer {
             revert(reason);
         } catch (bytes memory lowLevelData) {
             emit ErrorOccurred("_processDepositCollateral", "Low level error");
-            emit DebugLog("Low level error data _processDepositCollateral", lowLevelData);
+            emit DebugLog("_processDepositCollateral", "Low level error data _processDepositCollateral", lowLevelData);
             revert("Deposit collateral failed with low level error");
         }
     }
 
     function _processMatchOrderAMM(bytes calldata transaction) internal {
-         emit DebugLog("Processing MatchOrderAMM", transaction);
+         emit DebugLog("_processMatchOrderAMM", "Processing MatchOrderAMM", transaction);
         (, IEndpoint.MatchOrderAMM memory matchOrderAMM) = abi.decode(transaction[1:], (uint8, IEndpoint.MatchOrderAMM));
         emit MockMatchAttempt(
             matchOrderAMM.productId,
@@ -242,7 +259,7 @@ contract MockSequencer {
         );
         address takerLinkedSigner = endpoint.getLinkedSigner(matchOrderAMM.taker.order.sender);
         try offchainExchange.matchOrderAMM(matchOrderAMM, takerLinkedSigner) {
-            emit DebugLog("MatchOrderAMM successful", "");
+            emit DebugLog("_processMatchOrderAMM", "MatchOrderAMM successful", "");
         } catch Error(string memory reason) {
             emit ErrorOccurred("_processMatchOrderAMM", reason);
             revert(reason);
@@ -254,7 +271,7 @@ contract MockSequencer {
     }
 
     function _processWithdrawCollateral(bytes calldata transaction) internal {
-        emit DebugLog("Processing _processWithdrawCollateral", transaction); 
+        emit DebugLog("_processWithdrawCollateral", "Processing _processWithdrawCollateral", transaction); 
         (, IEndpoint.WithdrawCollateral memory withdraw) = abi.decode(transaction[1:], (uint8, IEndpoint.WithdrawCollateral));
         try  clearinghouse.withdrawCollateral(withdraw.sender, withdraw.productId, withdraw.amount, address(0)) {
         } catch Error(string memory reason) {
@@ -262,13 +279,13 @@ contract MockSequencer {
             revert(reason);
         } catch (bytes memory lowLevelData) {
             emit ErrorOccurred("_processWithdrawCollateral", "Low level error");
-            emit DebugLog("Low level error data _processWithdrawCollateral", lowLevelData);
+            emit DebugLog("_processWithdrawCollateral", "Low level error data _processWithdrawCollateral", lowLevelData);
             revert("Withdraw collateral failed with low level error");
         }
     }
 
     function _processSettlePnl(bytes calldata transaction) internal {
-        emit DebugLog("Processing _processSettlePnl", transaction); 
+        emit DebugLog("_processSettlePnl", "Processing _processSettlePnl", transaction); 
         (, IEndpoint.SettlePnl memory settlePnl) = abi.decode(transaction[1:], (uint8, IEndpoint.SettlePnl));
         try  clearinghouse.settlePnl(settlePnl) {
 
@@ -277,7 +294,7 @@ contract MockSequencer {
             revert(reason);
         } catch (bytes memory lowLevelData) {
             emit ErrorOccurred("_processSettlePnl", "Low level error");
-            emit DebugLog("Low level error data _processSettlePnl", lowLevelData);
+            emit DebugLog("_processSettlePnl", "Low level error data _processSettlePnl", lowLevelData);
             revert("Withdraw collateral failed with low level error");
         }
     }

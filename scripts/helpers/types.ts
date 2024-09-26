@@ -29,3 +29,7 @@ export interface Balance {
   amount: ethers.BigNumber;
   lastCumulativeMultiplierX18: ethers.BigNumber;
 }
+
+export interface EventArg {
+  [key: string]: any;
+}

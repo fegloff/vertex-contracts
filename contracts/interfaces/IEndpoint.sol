@@ -302,6 +302,30 @@ interface IEndpoint is IVersion {
         string calldata referralCode
     ) external;
 
+    function submitTransactionsChecked(
+        uint64 idx,
+        bytes[] calldata transactions,
+        bytes32 e,
+        bytes32 s
+    ) external;
+
+    function submitTransactionsCheckedWithGasLimit(
+        uint64 idx,
+        bytes[] calldata transactions,
+        uint256 gasLimit
+    ) external;
+
+    function processSlowModeTransaction(
+        address sender,
+        bytes calldata transaction
+    ) external;
+
+    function getLinkedSigner(bytes32 subaccount) external view returns (address);
+
+    function executeSlowModeTransactionImmediately() external;
+    
+    function executeSlowModeTransaction() external; 
+
     function submitSlowModeTransaction(bytes calldata transaction) external;
 
     function getTime() external view returns (uint128);

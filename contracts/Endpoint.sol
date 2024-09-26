@@ -16,11 +16,8 @@ import "./interfaces/engine/ISpotEngine.sol";
 import "./interfaces/engine/IPerpEngine.sol";
 import "./interfaces/IERC20Base.sol";
 import "./interfaces/IVerifier.sol";
+import "./interfaces/ISanctionsList.sol";
 import "./Version.sol";
-
-interface ISanctionsList {
-    function isSanctioned(address addr) external view returns (bool);
-}
 
 contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
     using ERC20Helper for IERC20Base;
@@ -92,6 +89,10 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
             priceX18[productId] = _priceX18;
             IProductEngine(engine).updatePrice(productId, _priceX18);
         }
+    }
+
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
     }
 
     function initialize(
@@ -277,7 +278,6 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         string memory referralCode
     ) public {
         require(bytes(referralCode).length != 0, ERR_INVALID_REFERRAL_CODE);
-
         address sender = address(bytes20(subaccount));
 
         // depositor / depositee need to be unsanctioned
@@ -321,11 +321,9 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
 
     function submitSlowModeTransaction(bytes calldata transaction) external {
         TransactionType txType = TransactionType(uint8(transaction[0]));
-
         // special case for DepositCollateral because upon
         // slow mode submission we must take custody of the
         // actual funds
-
         address sender = msg.sender;
 
         if (txType == TransactionType.DepositCollateral) {
@@ -375,37 +373,19 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         SlowModeConfig memory _slowModeConfig,
         bool fromSequencer
     ) internal {
-        require(
-            _slowModeConfig.txUpTo < _slowModeConfig.txCount,
-            ERR_NO_SLOW_MODE_TXS_REMAINING
-        );
+        require(_slowModeConfig.txUpTo < _slowModeConfig.txCount, ERR_NO_SLOW_MODE_TXS_REMAINING);
         SlowModeTx memory txn = slowModeTxs[_slowModeConfig.txUpTo];
         delete slowModeTxs[_slowModeConfig.txUpTo++];
-
-        require(
-            fromSequencer || (txn.executableAt <= block.timestamp),
-            ERR_SLOW_TX_TOO_RECENT
-        );
+        require(fromSequencer || (txn.executableAt <= block.timestamp), ERR_SLOW_TX_TOO_RECENT);
 
         uint256 gasRemaining = gasleft();
-        try this.processSlowModeTransaction(txn.sender, txn.tx) {} catch {
-            // we need to differentiate between a revert and an out of gas
-            // the expectation is that because 63/64 * gasRemaining is forwarded
-            // we should be able to differentiate based on whether
-            // gasleft() >= gasRemaining / 64. however, experimentally
-            // even more gas can be remaining, and i don't have a clear
-            // understanding as to why. as a result we just err on the
-            // conservative side and provide two conservative
-            // asserts that should cover all cases at the expense of needing
-            // to provide a higher gas limit than necessary
-
+        try this.processSlowModeTransaction(txn.sender, txn.tx) {
+        } catch {
             if (gasleft() <= 100000 || gasleft() <= gasRemaining / 16) {
                 assembly {
                     invalid()
                 }
             }
-
-            // try return funds now removed
         }
     }
 
@@ -415,87 +395,83 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         slowModeConfig = _slowModeConfig;
     }
 
-    // TODO: these do not need senders or nonces
-    // we can save some gas by creating new structs
-    function processSlowModeTransaction(
-        address sender,
-        bytes calldata transaction
-    ) public {
-        require(msg.sender == address(this));
-        TransactionType txType = TransactionType(uint8(transaction[0]));
+    function executeSlowModeTransactionImmediately() external {
+        SlowModeConfig memory _slowModeConfig = slowModeConfig;
+        _executeSlowModeTransaction(_slowModeConfig, true);
+        slowModeConfig = _slowModeConfig;
+    }
+
+    function _processSlowModeTx(address sender, TransactionType txType, bytes calldata txData) internal {
         if (txType == TransactionType.LiquidateSubaccount) {
-            LiquidateSubaccount memory txn = abi.decode(
-                transaction[1:],
-                (LiquidateSubaccount)
-            );
+            LiquidateSubaccount memory txn = abi.decode(txData, (LiquidateSubaccount));
             validateSender(txn.sender, sender);
             requireSubaccount(txn.sender);
             clearinghouse.liquidateSubaccount(txn);
         } else if (txType == TransactionType.DepositCollateral) {
-            DepositCollateral memory txn = abi.decode(
-                transaction[1:],
-                (DepositCollateral)
-            );
+            DepositCollateral memory txn = abi.decode(txData, (DepositCollateral));
             validateSender(txn.sender, sender);
             _recordSubaccount(txn.sender);
             clearinghouse.depositCollateral(txn);
         } else if (txType == TransactionType.WithdrawCollateral) {
-            WithdrawCollateral memory txn = abi.decode(
-                transaction[1:],
-                (WithdrawCollateral)
-            );
-
+            WithdrawCollateral memory txn = abi.decode(txData, (WithdrawCollateral));
             validateSender(txn.sender, sender);
-            clearinghouse.withdrawCollateral(
-                txn.sender,
-                txn.productId,
-                txn.amount,
-                address(0)
-            );
-        } else if (txType == TransactionType.SettlePnl) {
-            SettlePnl memory txn = abi.decode(transaction[1:], (SettlePnl));
-            clearinghouse.settlePnl(txn);
-        } else if (txType == TransactionType.DepositInsurance) {
-            DepositInsurance memory txn = abi.decode(
-                transaction[1:],
-                (DepositInsurance)
-            );
-            clearinghouse.depositInsurance(txn);
+            clearinghouse.withdrawCollateral(txn.sender, txn.productId, txn.amount, address(0));
         } else if (txType == TransactionType.MintLp) {
-            MintLp memory txn = abi.decode(transaction[1:], (MintLp));
-            require(txn.productId % 2 == 1);
+            MintLp memory txn = abi.decode(txData, (MintLp));
+            require(txn.productId % 2 == 1, "Invalid product ID");
             validateSender(txn.sender, sender);
             clearinghouse.mintLp(txn);
         } else if (txType == TransactionType.BurnLp) {
-            BurnLp memory txn = abi.decode(transaction[1:], (BurnLp));
+            BurnLp memory txn = abi.decode(txData, (BurnLp));
             validateSender(txn.sender, sender);
             clearinghouse.burnLp(txn);
+        } else if (txType == TransactionType.LinkSigner) {
+            LinkSigner memory txn = abi.decode(txData, (LinkSigner));
+            validateSender(txn.sender, sender);
+            requireSubaccount(txn.sender);
+            linkedSigners[txn.sender] = address(uint160(bytes20(txn.signer)));
+        } else if (txType == TransactionType.BurnLpAndTransfer) {
+            BurnLpAndTransfer memory txn = abi.decode(txData, (BurnLpAndTransfer));
+            validateSender(txn.sender, sender);
+            _recordSubaccount(txn.recipient);
+            clearinghouse.burnLpAndTransfer(txn);
+        }
+    }
+
+    function _processClearinghouseTx(TransactionType txType, bytes calldata txData) internal {
+        if (txType == TransactionType.SettlePnl) {
+            clearinghouse.settlePnl(abi.decode(txData, (SettlePnl)));
+        } else if (txType == TransactionType.DepositInsurance) {
+            clearinghouse.depositInsurance(abi.decode(txData, (DepositInsurance)));
+        }
+    }
+
+    // TODO: these do not need senders or nonces
+    // we can save some gas by creating new structs
+    function processSlowModeTransaction(address sender, bytes calldata transaction) public {
+        require(msg.sender == address(this), "External call not allowed");
+        TransactionType txType = TransactionType(uint8(transaction[0]));
+        if (txType == TransactionType.LiquidateSubaccount ||
+            txType == TransactionType.DepositCollateral ||
+            txType == TransactionType.WithdrawCollateral ||
+            txType == TransactionType.MintLp ||
+            txType == TransactionType.BurnLp ||
+            txType == TransactionType.LinkSigner ||
+            txType == TransactionType.BurnLpAndTransfer) {
+            _processSlowModeTx(sender, txType, transaction[1:]);
+        } else if (txType == TransactionType.SettlePnl ||
+                   txType == TransactionType.DepositInsurance) {
+            _processClearinghouseTx(txType, transaction[1:]);
         } else if (txType == TransactionType.SwapAMM) {
             SwapAMM memory txn = abi.decode(transaction[1:], (SwapAMM));
             validateSender(txn.sender, sender);
             requireSubaccount(txn.sender);
             IOffchainExchange(offchainExchange).swapAMM(txn);
         } else if (txType == TransactionType.UpdateProduct) {
-            UpdateProduct memory txn = abi.decode(
-                transaction[1:],
-                (UpdateProduct)
-            );
+            UpdateProduct memory txn = abi.decode(transaction[1:], (UpdateProduct));
             IProductEngine(txn.engine).updateProduct(txn.tx);
-        } else if (txType == TransactionType.LinkSigner) {
-            LinkSigner memory txn = abi.decode(transaction[1:], (LinkSigner));
-            validateSender(txn.sender, sender);
-            requireSubaccount(txn.sender);
-            linkedSigners[txn.sender] = address(uint160(bytes20(txn.signer)));
-        } else if (txType == TransactionType.BurnLpAndTransfer) {
-            BurnLpAndTransfer memory txn = abi.decode(
-                transaction[1:],
-                (BurnLpAndTransfer)
-            );
-            validateSender(txn.sender, sender);
-            _recordSubaccount(txn.recipient);
-            clearinghouse.burnLpAndTransfer(txn);
         } else {
-            revert();
+            revert("Invalid transaction type");
         }
     }
 
@@ -586,6 +562,14 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
                 makerLinkedSigner: getLinkedSigner(txn.maker.order.sender)
             });
             IOffchainExchange(offchainExchange).matchOrders(txnWithSigner);
+        } else if (txType == TransactionType.SwapAMM) {
+            SwapAMM memory txn = abi.decode(transaction[1:], (SwapAMM));
+            address sender = msg.sender == address(this) 
+                ? address(uint160(bytes20(txn.sender))) 
+                : msg.sender;
+            validateSender(txn.sender, sender);
+            requireSubaccount(txn.sender);
+            IOffchainExchange(offchainExchange).swapAMM(txn);
         } else if (txType == TransactionType.MatchOrderAMM) {
             MatchOrderAMM memory txn = abi.decode(
                 transaction[1:],
@@ -712,7 +696,6 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
                     )
                 )
             );
-
             requireSubaccount(signedTx.tx.recipient);
             validateSignature(signedTx.tx.sender, digest, signedTx.signature);
             validateNonce(signedTx.tx.sender, signedTx.tx.nonce);
@@ -767,14 +750,15 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         uint256 gasUsed = gasleft();
         require(idx == nSubmissions, ERR_INVALID_SUBMISSION_INDEX);
         for (uint256 i = 0; i < transactions.length; i++) {
-            bytes calldata transaction = transactions[i];
-            processTransaction(transaction);
+            // bytes calldata transaction = transactions[i];
+            processTransaction(transactions[i]);
             if (gasUsed - gasleft() > gasLimit) {
                 verifier.revertGasInfo(i, gasUsed);
             }
         }
         verifier.revertGasInfo(transactions.length, gasUsed - gasleft());
     }
+
 
     function getSubaccountId(bytes32 subaccount)
         external
@@ -797,12 +781,12 @@ contract Endpoint is IEndpoint, EIP712Upgradeable, OwnableUpgradeable, Version {
         _priceX18 = priceX18[productId];
         require(_priceX18 != 0, ERR_INVALID_PRODUCT);
     }
-
+    
     function getTime() external view returns (uint128) {
         Times memory t = times;
         uint128 _time = t.spotTime > t.perpTime ? t.spotTime : t.perpTime;
-        require(_time != 0, ERR_INVALID_TIME);
-        return _time;
+        // require(_time != 0, ERR_INVALID_TIME);
+        return _time;  // Return 0 if time hasn't been initialized yet, instead of reverting
     }
 
     function getOffchainExchange() external view returns (address) {

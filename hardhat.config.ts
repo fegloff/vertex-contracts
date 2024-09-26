@@ -14,6 +14,10 @@ import 'hardhat-gas-reporter';
 import 'hardhat-contract-sizer';
 import 'hardhat-abi-exporter';
 import { HardhatUserConfig } from 'hardhat/config';
+import * as configApp from './config';
+import * as path from 'path';
+
+const networkFolder = configApp.config.network || 'default';
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -25,12 +29,40 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  defaultNetwork: 'localhost',
+  defaultNetwork: 'testnet',
+  networks: {
+    'mainnet': {
+      url: configApp.config.mainnet.networkUrl,
+      chainId: configApp.config.mainnet.chainId,
+      accounts: [configApp.config.mainnet.privateKey],
+    },
+    'testnet': {
+      url: configApp.config.testnet.networkUrl, 
+      chainId: configApp.config.testnet.chainId,
+      accounts: [configApp.config.testnet.privateKey],
+    },
+    'localhost': {
+      url: "http://127.0.0.1:8545",
+      chainId: 31337,
+    },
+    'hardhat': {
+      chainId: 31337,
+      // accounts: [configApp.config.hardhat.privateKey]
+    }
+  },
+  namedAccounts: {
+    deployer: {
+      default: 0, // Use the first account from the accounts array
+      mainnet: 0,
+      testnet: 0,
+      harmony: 0,
+    },
+  },
   contractSizer: {
     runOnCompile: true,
   },
   abiExporter: {
-    path: './abis',
+    path: path.join(__dirname, 'abis', networkFolder), // './abis',
     runOnCompile: true,
     clear: true,
     flat: true,
@@ -42,6 +74,13 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     timeout: 1000000000,
+  },
+  paths: {
+    sources: './contracts',
+    tests: './test',
+    cache: path.join(__dirname, 'cache', networkFolder),
+    artifacts: path.join(__dirname, 'artifacts', networkFolder),
+    deploy:'./scripts/deploy'
   },
 };
 

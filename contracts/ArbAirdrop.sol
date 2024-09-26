@@ -8,11 +8,18 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+/**
+ * @title ArbAirdrop
+ * @notice This contract implements an airdrop system using Merkle trees for efficient and secure distribution of tokens.
+ * It allows the contract owner to register Merkle roots for each week and users to claim tokens by providing a valid Merkle proof.
+ * The contract also integrates with a sanctions contract to prevent sanctioned addresses from claiming tokens.
+ */
 contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
     address token;
     address sanctions;
     uint32 pastWeeks;
 
+    event InitializationStep(uint256 step);
     mapping(uint32 => bytes32) merkleRoots;
     mapping(uint32 => mapping(address => uint256)) claimed;
 
@@ -21,15 +28,31 @@ contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the contract with the token and sanctions addresses
+     * @param _token The address of the token to be airdropped
+     * @param _sanctions The address of the sanctions contract
+     */
     function initialize(address _token, address _sanctions)
         external
         initializer
     {
+        emit InitializationStep(0);
         __Ownable_init();
         token = _token;
         sanctions = _sanctions;
+        emit InitializationStep(1);
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
+
+    /**
+     * @notice Registers a Merkle root for a specific week
+     * @param week The week number
+     * @param merkleRoot The Merkle root for the given week
+     */
     function registerMerkleRoot(uint32 week, bytes32 merkleRoot)
         external
         onlyOwner
@@ -39,6 +62,13 @@ contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
         merkleRoots[week] = merkleRoot;
     }
 
+    /**
+     * @notice Verifies the Merkle proof for a specific claim
+     * @param week The week number
+     * @param sender The address of the claimant
+     * @param totalAmount The total amount of tokens to be claimed
+     * @param proof The Merkle proof for the claim
+     */
     function _verifyProof(
         uint32 week,
         address sender,
@@ -62,6 +92,12 @@ contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
         claimed[week][sender] = totalAmount;
     }
 
+    /**
+     * @notice Claims tokens for a specific week
+     * @param week The week number
+     * @param totalAmount The total amount of tokens to be claimed
+     * @param proof The Merkle proof for the claim
+     */
     function _claim(
         uint32 week,
         uint256 totalAmount,
@@ -72,6 +108,10 @@ contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
         emit ClaimArb(msg.sender, week, totalAmount);
     }
 
+    /**
+     * @notice Claims tokens for multiple weeks in a single transaction
+     * @param claimProofs An array of ClaimProof structs containing the week, total amount, and Merkle proof for each claim
+     */
     function claim(ClaimProof[] calldata claimProofs) external {
         for (uint32 i = 0; i < claimProofs.length; i++) {
             _claim(
@@ -82,6 +122,11 @@ contract ArbAirdrop is OwnableUpgradeable, IArbAirdrop {
         }
     }
 
+    /**
+     * @notice Retrieves the claimed amounts for a specific account
+     * @param account The address of the account
+     * @return An array of claimed amounts for each week
+     */
     function getClaimed(address account)
         external
         view

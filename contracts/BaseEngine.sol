@@ -2,8 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "hardhat/console.sol";
 
+// solhint-disable-next-line no-global-import
+// solhint-disable-next-line no-console
+import "hardhat/console.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
 import "./libraries/MathHelper.sol";
@@ -15,6 +17,12 @@ import "./interfaces/IEndpoint.sol";
 import "./EndpointGated.sol";
 import "./libraries/Logger.sol";
 
+/**
+ * @title BaseEngine
+ * @notice This is an abstract base contract for product engines in the Vertex Protocol.
+ * It provides common functionality for managing products, risks, and balances.
+ * The contract interacts with the Clearinghouse, OffchainExchange, and Endpoint contracts.
+ */
 abstract contract BaseEngine is IProductEngine, EndpointGated {
     using MathSD21x18 for int128;
 
@@ -35,6 +43,15 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
     event BalanceUpdate(uint32 productId, bytes32 subaccount);
     event ProductUpdate(uint32 productId);
     event QuoteProductUpdate(uint32 isoGroup);
+
+    event PreAddProduct(uint32 indexed productId, string message);
+    event RiskStoreSet(uint32 indexed productId, string message);
+    // event ProductRegistered(uint32 indexed productId, string message);
+    // event ProductIdAdded(uint32 indexed productId, string message);
+    // event MarketUpdated(uint32 indexed productId, string message);
+    // event CrossMaskUpdated(uint32 indexed productId, string message);
+    // event AddProductFailed(uint32 indexed productId, string reason);
+    // event AddProductSuccess(uint32 indexed productId, string message);
 
     function _productUpdate(uint32 productId) internal virtual {}
 
@@ -108,6 +125,12 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         virtual
         returns (int128, int128);
 
+    /**
+     * @notice Calculates the health contribution of a subaccount for a given health type
+     * @param subaccount The subaccount ID
+     * @param healthType The type of health calculation (Initial or Maintenance)
+     * @return health The health contribution of the subaccount
+     */
     function getHealthContribution(
         bytes32 subaccount,
         IProductEngine.HealthType healthType
@@ -166,6 +189,13 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         }
     }
 
+    /**
+     * @notice Retrieves the core risk parameters for a subaccount and product
+     * @param subaccount The subaccount ID
+     * @param productId The ID of the product
+     * @param healthType The type of health calculation (Initial or Maintenance)
+     * @return The core risk parameters
+     */
     function getCoreRisk(
         bytes32 subaccount,
         uint32 productId,
@@ -190,6 +220,13 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         require(canApplyDeltas[msg.sender], ERR_UNAUTHORIZED);
     }
 
+    /**
+     * @notice Initializes the contract with the necessary addresses and configurations
+     * @param _clearinghouseAddr The address of the Clearinghouse contract
+     * @param _offchainExchangeAddr The address of the OffchainExchange contract
+     * @param _endpointAddr The address of the Endpoint contract
+     * @param _admin The address of the admin account
+     */
     function _initialize(
         address _clearinghouseAddr,
         address _offchainExchangeAddr,
@@ -207,10 +244,18 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         canApplyDeltas[_offchainExchangeAddr] = true;
     }
 
+    /**
+     * @notice Retrieves the address of the Clearinghouse contract
+     * @return The address of the Clearinghouse contract
+     */
     function getClearinghouse() external view returns (address) {
         return address(_clearinghouse);
     }
 
+    /**
+     * @notice Retrieves the IDs of all registered products
+     * @return An array of product IDs
+     */
     function getProductIds() public view returns (uint32[] memory) {
         return productIds;
     }
@@ -241,13 +286,60 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
         return crossProducts;
     }
 
+    /**
+     * @notice Adds a new product with the given parameters
+     * @param productId The ID of the product to add
+     * @param riskStore The risk parameters for the product
+     * @param virtualBook The address of the virtual orderbook for the product
+     * @param sizeIncrement The size increment for the product
+     * @param minSize The minimum size for the product
+     * @param lpSpreadX18 The liquidity provider spread for the product (fixed-point number with 18 decimals)
+     */
+    // function _addProductForId(
+    //     uint32 productId,
+    //     RiskHelper.RiskStore memory riskStore,
+    //     address virtualBook,
+    //     int128 sizeIncrement,
+    //     int128 minSize,
+    //     int128 lpSpreadX18
+    // ) internal {
+    //     require(virtualBook != address(0));
+    //     require(
+    //         riskStore.longWeightInitial <= riskStore.longWeightMaintenance &&
+    //             riskStore.shortWeightInitial >=
+    //             riskStore.shortWeightMaintenance,
+    //         ERR_BAD_PRODUCT_CONFIG
+    //     );
+
+    //     _risk().value[productId] = riskStore;
+
+    //     // register product with clearinghouse
+    //     _clearinghouse.registerProduct(productId);
+
+    //     productIds.push(productId);
+
+    //     _exchange().updateMarket(
+    //         productId,
+    //         virtualBook,
+    //         sizeIncrement,
+    //         minSize,
+    //         lpSpreadX18
+    //     );
+
+    //     if (productId < 256) {
+    //         _crossMask().value |= 1 << productId;
+    //     }
+
+    //     emit AddProduct(productId);
+    // }
+
     function _addProductForId(
-        uint32 productId,
-        RiskHelper.RiskStore memory riskStore,
-        address virtualBook,
-        int128 sizeIncrement,
-        int128 minSize,
-        int128 lpSpreadX18
+    uint32 productId,
+    RiskHelper.RiskStore memory riskStore,
+    address virtualBook,
+    int128 sizeIncrement,
+    int128 minSize,
+    int128 lpSpreadX18
     ) internal {
         require(virtualBook != address(0));
         require(
@@ -257,12 +349,16 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
             ERR_BAD_PRODUCT_CONFIG
         );
 
-        _risk().value[productId] = riskStore;
+        emit PreAddProduct(productId, "Starting product addition");
 
-        // register product with clearinghouse
+        _risk().value[productId] = riskStore;
+        emit RiskStoreSet(productId, "Risk store set successfully");
+
         _clearinghouse.registerProduct(productId);
+       // emit ProductRegistered(productId, "Product registered with clearinghouse");
 
         productIds.push(productId);
+        // emit ProductIdAdded(productId, "Product ID added to list");
 
         _exchange().updateMarket(
             productId,
@@ -271,12 +367,15 @@ abstract contract BaseEngine is IProductEngine, EndpointGated {
             minSize,
             lpSpreadX18
         );
+        // emit MarketUpdated(productId, "Market updated successfully");
 
         if (productId < 256) {
             _crossMask().value |= 1 << productId;
+            // emit CrossMaskUpdated(productId, "Cross mask updated");
         }
 
         emit AddProduct(productId);
+        // emit AddProductSuccess(productId, "Product added successfully");
     }
 
     function _exchange() internal view returns (IOffchainExchange) {

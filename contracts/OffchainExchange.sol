@@ -39,6 +39,10 @@ contract OffchainExchange is
     mapping(address => bool) internal addressTouched;
     address[] internal customFeeAddresses;
 
+    // event MatchAttempt(int128 impliedPriceX18, int128 orderPriceX18, int128 baseDelta, int128 quoteDelta);
+    event MatchAttempt(int128 indexed impliedPriceX18, int128 orderPriceX18, int128 baseDelta, int128 quoteDelta);
+    event DebugLogOffchain(string indexed topic, string message);
+
     function getAllFeeRates(address[] memory users, uint32[] memory productIds)
         external
         view
@@ -154,6 +158,10 @@ contract OffchainExchange is
         }
     }
 
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
+    }
+
     function initialize(address _clearinghouse, address _endpoint)
         external
         initializer
@@ -178,6 +186,7 @@ contract OffchainExchange is
         int128 minSize,
         int128 lpSpreadX18
     ) external virtual {
+        emit DebugLogOffchain("updateMarket", toAsciiString(msg.sender));
         require(
             msg.sender == address(spotEngine) ||
                 msg.sender == address(perpEngine),
@@ -194,6 +203,23 @@ contract OffchainExchange is
         marketInfo[productId].minSize = int64(minSize / 1e9);
         marketInfo[productId].sizeIncrement = int64(sizeIncrement / 1e9);
         lpParams[productId] = LpParams(lpSpreadX18);
+    }
+
+    function toAsciiString(address x) internal pure returns (string memory) {
+        bytes memory s = new bytes(40);
+        for (uint i = 0; i < 20; i++) {
+            bytes1 b = bytes1(uint8(uint(uint160(x)) / (2**(8*(19 - i)))));
+            bytes1 hi = bytes1(uint8(b) / 16);
+            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
+            s[2*i] = char(hi);
+            s[2*i+1] = char(lo);            
+        }
+        return string(s);
+    }
+
+    function char(bytes1 b) internal pure returns (bytes1 c) {
+        if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
+        else return bytes1(uint8(b) + 0x57);
     }
 
     function getLpParams(uint32 productId)
@@ -407,13 +433,18 @@ contract OffchainExchange is
     ) internal returns (int128, int128) {
         // 1. assert that the price is better than the limit price
         int128 impliedPriceX18 = quoteDelta.div(baseDelta).abs();
+        
+        emit MatchAttempt(impliedPriceX18, taker.order.priceX18, baseDelta, quoteDelta);
+
         if (taker.order.amount > 0) {
             // if buying, the implied price must be lower than the limit price
+            emit DebugLogOffchain("_matchOrderAMM", "impliedPriceX18 <= taker.order.priceX18");
             require(
                 impliedPriceX18 <= taker.order.priceX18,
                 ERR_ORDERS_CANNOT_BE_MATCHED
             );
 
+            emit DebugLogOffchain("_matchOrderAMM", "baseDelta < 0 && taker.order.amount >= -baseDelta");
             // AMM must be selling
             // magnitude of what AMM is selling must be less than or equal to what the taker is buying
             require(
@@ -422,12 +453,14 @@ contract OffchainExchange is
             );
         } else {
             // if selling, the implied price must be higher than the limit price
+            emit DebugLogOffchain("_matchOrderAMM", "impliedPriceX18 >= taker.order.priceX18");
             require(
                 impliedPriceX18 >= taker.order.priceX18,
                 ERR_ORDERS_CANNOT_BE_MATCHED
             );
             // AMM must be buying
             // magnitude of what AMM is buying must be less than or equal to what the taker is selling
+            emit DebugLogOffchain("_matchOrderAMM", "baseDelta > 0 && taker.order.amount <= -baseDelta");
             require(
                 baseDelta > 0 && taker.order.amount <= -baseDelta,
                 ERR_ORDERS_CANNOT_BE_MATCHED
@@ -630,18 +663,20 @@ contract OffchainExchange is
                 ),
                 ERR_INVALID_MAKER
             );
-
+            emit DebugLogOffchain("matchOrders", "maker.order.amount > 0) != (taker.order.amount > 0");
             // ensure orders are crossing
             require(
                 (maker.order.amount > 0) != (taker.order.amount > 0),
                 ERR_ORDERS_CANNOT_BE_MATCHED
             );
             if (maker.order.amount > 0) {
+                emit DebugLogOffchain("matchOrders", "maker.order.priceX18 >= taker.order.priceX18");
                 require(
                     maker.order.priceX18 >= taker.order.priceX18,
                     ERR_ORDERS_CANNOT_BE_MATCHED
                 );
             } else {
+                emit DebugLogOffchain("matchOrders", "maker.order.priceX18 <= taker.order.priceX18");
                 require(
                     maker.order.priceX18 <= taker.order.priceX18,
                     ERR_ORDERS_CANNOT_BE_MATCHED

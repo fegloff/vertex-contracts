@@ -13,19 +13,39 @@ contract Verifier is EIP712Upgradeable, OwnableUpgradeable, IVerifier, Version {
     bool[256] internal isAggregatePubkeyLatest;
     uint256 internal nSigner;
 
+    event InitializationStep(uint256 step);
+    event PubkeyAssigned(uint256 index, uint256 x, uint256 y);
     /*
     constructor() {
         _disableInitializers();
     }
     */
 
+    // function initialize(Point[8] memory initialSet) external initializer {
+    //     __Ownable_init();
+    //     for (uint256 i = 0; i < 8; ++i) {
+    //         if (!isPointNone(initialSet[i])) {
+    //             _assignPubkey(i, initialSet[i].x, initialSet[i].y);
+    //         }
+    //     }
+    // }
+
     function initialize(Point[8] memory initialSet) external initializer {
+        emit InitializationStep(0);
         __Ownable_init();
+        emit InitializationStep(1);
         for (uint256 i = 0; i < 8; ++i) {
+            emit InitializationStep(2 + i);
             if (!isPointNone(initialSet[i])) {
                 _assignPubkey(i, initialSet[i].x, initialSet[i].y);
+                emit PubkeyAssigned(i, initialSet[i].x, initialSet[i].y);
             }
         }
+        emit InitializationStep(10);
+    }
+
+    function isInitialized() public view returns (bool) {
+        return _getInitializedVersion() > 0;
     }
 
     function revertGasInfo(uint256 i, uint256 gasUsed) external pure {
@@ -215,5 +235,9 @@ contract Verifier is EIP712Upgradeable, OwnableUpgradeable, IVerifier, Version {
         y3 = mulmod(y3, lam, _P);
         y3 = addmod(y3, _P - u.y, _P);
         return Point(x3, y3);
+    }
+
+    function getContractState() external view returns (uint256, address) {
+        return (nSigner, owner());
     }
 }
